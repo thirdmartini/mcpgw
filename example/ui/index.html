@@ -12,7 +12,13 @@
     <h1 class="title" id="mode">Agent: Jarvis</h1>
     <button id= "mic" style="background: #007700;height:50px; width:150px;" aria-hidden="true" onclick="toggleRecording();">Ready</button>
     <br>
-    <div id="text" style="padding: 50px;">
+
+    <div style="padding-left: 40px;padding-right: 50px;width:100%;text-align: left;"><b>User</b></div>
+    <div id="prompt" style="padding: 50px;width:100%;text-align: left;">
+    </div>
+
+    <div style="padding-left: 40px;padding-right: 50px;width:100%;text-align: left;"><b>Agent</b></div>
+    <div id="text" style="padding: 50px;width:100%;text-align: left;">
     </div>
     <div id="debug" style="padding-top: 200px;">
     </div>
@@ -98,6 +104,9 @@
                     .then(data => {
                         console.log('Audio uploaded successfully:', data);
                         console.log("REQUEST OK:", data);
+
+                        let prompt = document.getElementById("prompt")
+                        prompt.innerHTML = data.Prompt
 
                         let text = document.getElementById("text")
                         text.innerHTML = data.Message

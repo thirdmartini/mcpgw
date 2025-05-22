@@ -28,6 +28,31 @@ go build github.com/thirdmartini/mcpgw/cmd/mcpgw
 ./mcpgw  --config ./mcphost.json -mollama:mistral-small3.1 --server-root=example/ui --whisper=http://localhost:8802
 ```
 
+4. Add your onw MCPServer
+
+```json
+{
+  "mcpServers": {
+    "sqlite": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-sqlite",
+        "--db-path",
+        "/tmp/foo.db"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/tmp"
+      ]
+    }
+  }
+}
+```
+
 server-root points to your application html and js.
 --whisper optionally points to your whisper server 
 

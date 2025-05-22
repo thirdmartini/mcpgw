@@ -28,6 +28,7 @@ type Request struct {
 }
 
 type Response struct {
+	Prompt  string
 	Message string
 }
 
@@ -82,7 +83,11 @@ func (s *Server) AudioChatRequest(w http.ResponseWriter, r *http.Request) {
 
 	message, err := s.host.RunPrompt(context.Background(), prompt, &session.messages)
 	log.Info("LLM Response: " + message)
-	json.NewEncoder(w).Encode(Response{Message: message})
+
+	json.NewEncoder(w).Encode(Response{
+		Prompt:  prompt,
+		Message: message,
+	})
 }
 
 func (s *Server) ChatRequest(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +112,9 @@ func (s *Server) ChatRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(Response{Message: message})
+	json.NewEncoder(w).Encode(Response{
+		Prompt:  request.Prompt,
+		Message: message})
 }
 
 func (s *Server) ListenAndServe(address string, root string) error {
