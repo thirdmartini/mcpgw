@@ -1,0 +1,1 @@
+This code is heavily based on https://github.com/mark3labs/mcphost 

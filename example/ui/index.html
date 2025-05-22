@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Transcription Demo</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+<div class="audio-recording-container">
+    <h1 class="title" id="mode">Agent: Jarvis</h1>
+    <button id= "mic" style="background: #007700;height:50px; width:150px;" aria-hidden="true" onclick="toggleRecording();">Ready</button>
+    <br>
+    <div id="text" style="padding: 50px;">
+    </div>
+    <div id="debug" style="padding-top: 200px;">
+    </div>
+</div>
+
+<audio controls class="audio-element hide" id="player">
+</audio>
+
+<script type="module">
+    import * as Audio from "../static/js/recorder.js";
+
+    const containers = ['webm', 'ogg', 'mp4', 'x-matroska', '3gpp', '3gpp2',
+        '3gp2', 'quicktime', 'mpeg', 'aac', 'flac', 'wav']
+    const codecs = ['vp9', 'vp8', 'avc1', 'av1', 'h265', 'h.265', 'h264',
+        'h.264', 'opus', 'pcm', 'aac', 'mpeg', 'mp4a'];
+
+    const supportedAudios = containers.map(format => `audio/${format}`)
+        .filter(mimeType => MediaRecorder.isTypeSupported(mimeType))
+    const supportedAudioCodecs = supportedAudios.flatMap(audio =>
+        codecs.map(codec => `${audio};codecs=${codec}`))
+        .filter(mimeType => MediaRecorder.isTypeSupported(mimeType))
+
+    console.log('Supported Audio formats:', supportedAudios)
+    console.log('Supported Audio codecs:', supportedAudioCodecs)
+
+    const supportedVideos = containers.map(format => `video/${format}`)
+        .filter(mimeType => MediaRecorder.isTypeSupported(mimeType))
+    const supportedVideoCodecs = supportedVideos.flatMap(video =>
+        codecs.map(codec => `${video};codecs=${codec}`))
+        .filter(mimeType => MediaRecorder.isTypeSupported(mimeType))
+
+    console.log('Supported Video formats:', supportedVideos)
+    console.log('Supported Video codecs:', supportedVideoCodecs)
+
+
+    let debug = document.getElementById("debug")
+    debug.innerHTML = supportedAudios + " | " + supportedAudioCodecs
+
+    let mode = document.getElementById("mode")
+
+
+    let recorder = Audio.NewRecorder()
+    let isRecording = false
+
+    const options = {
+        audioBitsPerSecond: 16000,
+        mimeType: "audio/mp4",
+    };
+
+    window.toggleRecording = function() {
+        let button = document.getElementById("mic");
+        isRecording = !isRecording
+
+        if (isRecording == true) {
+            button.style.background = "#ffff00"
+
+            recorder.Start(function() {
+                console.log("captured")
+            }, options).then(() => { //on success
+                button.style.background = "#ff0000"
+                button.innerHTML = "Recording"
+            }).catch(error => {
+                debug.innerHTML = error
+
+            })
+
+        } else {
+            button.style.background = "#5555ff"
+            button.innerHTML = "Thinking"
+
+            recorder.Stop()
+                .then(audioAsblob => {
+                    console.log("recording captured", audioAsblob)
+                    //Audio.Play("player", audioAsblob)
+                    let text = document.getElementById("text")
+
+                    // send the audio to the server
+                    fetch('/api/v.1/recordings/save', {
+                        method: 'POST',
+                        body: audioAsblob
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Audio uploaded successfully:', data);
+                        console.log("REQUEST OK:", data);
+
+                        let text = document.getElementById("text")
+                        text.innerHTML = data.Message
+                        //mode.innerHTML = "Mode: " + data.mode
+                        button.style.background = "#007700"
+                        button.innerHTML = "Ready"
+
+                    })
+                    .catch(error => {
+                        console.log('Error uploading audio:', error);
+                    });
+                })
+                .catch(error => {
+                    //Error handling structure
+
+                    switch (error.name) {
+                        case 'InvalidStateError': //error from the MediaRecorder.stop
+                            console.log("An InvalidStateError has occurred.");
+                            break;
+                        default:
+                            console.log("An error occurred with the error name " + error.name);
+                    };
+                });
+        }
+    }
+</script>
+</body>
+</html>
