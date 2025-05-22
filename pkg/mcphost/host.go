@@ -19,11 +19,7 @@ type Host struct {
 	systemPrompt string
 	provider     llm.Provider
 	clients      map[string]mcpclient.MCPClient
-	// messages should move into session
-	messages []history.HistoryMessage
-	tools    []llm.Tool
-
-	messageWindow int
+	tools        []llm.Tool
 }
 
 func (h *Host) Close() {
@@ -36,78 +32,20 @@ func (h *Host) Close() {
 	}
 }
 
-func (h *Host) pruneMessages(messages []history.HistoryMessage) []history.HistoryMessage {
-	if len(messages) <= h.messageWindow {
-		return messages
-	}
-
-	// Keep only the most recent messages based on window size
-	messages = messages[len(messages)-h.messageWindow:]
-
-	// Handle messages
-	toolUseIds := make(map[string]bool)
-	toolResultIds := make(map[string]bool)
-
-	// First pass: collect all tool use and result IDs
-	for _, msg := range messages {
-		for _, block := range msg.Content {
-			if block.Type == "tool_use" {
-				toolUseIds[block.ID] = true
-			} else if block.Type == "tool_result" {
-				toolResultIds[block.ToolUseID] = true
-			}
-		}
-	}
-
-	// Second pass: filter out orphaned tool calls/results
-	var prunedMessages []history.HistoryMessage
-	for _, msg := range messages {
-		var prunedBlocks []history.ContentBlock
-		for _, block := range msg.Content {
-			keep := true
-			if block.Type == "tool_use" {
-				keep = toolResultIds[block.ID]
-			} else if block.Type == "tool_result" {
-				keep = toolUseIds[block.ToolUseID]
-			}
-			if keep {
-				prunedBlocks = append(prunedBlocks, block)
-			}
-		}
-		// Only include messages that have content or are not assistant messages
-		if (len(prunedBlocks) > 0 && msg.Role == "assistant") ||
-			msg.Role != "assistant" {
-			hasTextBlock := false
-			for _, block := range msg.Content {
-				if block.Type == "text" {
-					hasTextBlock = true
-					break
-				}
-			}
-			if len(prunedBlocks) > 0 || hasTextBlock {
-				msg.Content = prunedBlocks
-				prunedMessages = append(prunedMessages, msg)
-			}
-		}
-	}
-	return prunedMessages
-}
-
-func (h *Host) RunPrompt(ctx context.Context, prompt string) (string, error) {
-	message, err := h.runPromptNonInteractive(ctx, prompt)
-	h.messages = h.pruneMessages(h.messages)
+func (h *Host) RunPrompt(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (string, error) {
+	message, err := h.runPromptNonInteractive(ctx, prompt, messages)
 	return message, err
 }
 
-func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string) (string, error) {
+func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (string, error) {
 	var message llm.Message
 	var err error
 
 	// Convert MessageParam to llm.Message for provider
 	// Messages already implement llm.Message interface
-	llmMessages := make([]llm.Message, len(h.messages))
-	for i := range h.messages {
-		llmMessages[i] = &(h.messages)[i]
+	llmMessages := make([]llm.Message, len(*messages))
+	for i := range *messages {
+		llmMessages[i] = &(*messages)[i]
 	}
 
 	message, err = h.provider.CreateMessage(
@@ -190,13 +128,15 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string) (stri
 			req,
 		)
 
+		log.Info("Tool call completed", "tool_name", toolName, "tool_args", toolArgs, "server", serverName)
+
 		if err != nil {
 			errMsg := fmt.Sprintf(
 				"Error calling tool %s: %v",
 				toolName,
 				err,
 			)
-			fmt.Printf("\n%s\n", errorStyle.Render(errMsg))
+			log.Errorf(errMsg)
 
 			// Add error message as tool result
 			toolResults = append(toolResults, history.ContentBlock{
@@ -240,20 +180,21 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string) (stri
 		}
 	}
 
-	h.messages = append(h.messages, history.HistoryMessage{
+	*messages = append(*messages, history.HistoryMessage{
 		Role:    message.GetRole(),
 		Content: messageContent,
 	})
 
 	if len(toolResults) > 0 {
 		for _, toolResult := range toolResults {
-			h.messages = append(h.messages, history.HistoryMessage{
+			*messages = append(*messages, history.HistoryMessage{
 				Role:    "tool",
 				Content: []history.ContentBlock{toolResult},
 			})
 		}
 		// Make another call to get Claude's response to the tool results
-		return h.runPromptNonInteractive(ctx, "")
+		log.Info("Calling LLM to interpret tool result")
+		return h.runPromptNonInteractive(ctx, "", messages)
 	}
 	return "", nil
 }
@@ -309,6 +250,5 @@ func (h *Host) WithServerConfig(configSrc string) error {
 func NewHost(provider llm.Provider) *Host {
 	return &Host{
 		provider: provider,
-		messages: make([]history.HistoryMessage, 0),
 	}
 }

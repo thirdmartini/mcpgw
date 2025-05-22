@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gorilla/mux"
 
+	"github.com/thirdmartini/mcpgw/pkg/history"
 	"github.com/thirdmartini/mcpgw/pkg/mcphost"
 	"github.com/thirdmartini/mcpgw/pkg/transcriber"
 )
@@ -16,6 +18,9 @@ import (
 type Server struct {
 	host        *mcphost.Host
 	transcriber transcriber.Transcriber
+
+	lock     sync.Mutex
+	sessions map[string]*Session
 }
 
 type Request struct {
@@ -26,12 +31,45 @@ type Response struct {
 	Message string
 }
 
-type Session struct {
-	//
+func (s *Server) getSession(r *http.Request) *Session {
+	token := r.Header.Get("X-Session-Token")
+	if token == "" {
+		return &Session{
+			id:       token,
+			messages: []history.HistoryMessage{},
+			window:   16,
+		}
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if session, ok := s.sessions[token]; ok {
+		return session
+	}
+
+	return &Session{
+		id:       token,
+		messages: []history.HistoryMessage{},
+		window:   16,
+	}
+}
+
+func (s *Server) putSession(session *Session) {
+	if session.id == "" {
+		return
+	}
+
+	session.Prune()
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.sessions[session.id] = session
 }
 
 func (s *Server) AudioChatRequest(w http.ResponseWriter, r *http.Request) {
-	log.Info("Audio Chat Request")
+	session := s.getSession(r)
+	defer s.putSession(session)
+
+	log.Info("Audio Chat Request", "session", session.id)
 
 	prompt, err := s.Transcribe(r.Body)
 	if err != nil {
@@ -42,12 +80,17 @@ func (s *Server) AudioChatRequest(w http.ResponseWriter, r *http.Request) {
 
 	log.Info("Transcribed Prompt: " + prompt)
 
-	message, err := s.host.RunPrompt(context.Background(), prompt)
+	message, err := s.host.RunPrompt(context.Background(), prompt, &session.messages)
 	log.Info("LLM Response: " + message)
 	json.NewEncoder(w).Encode(Response{Message: message})
 }
 
 func (s *Server) ChatRequest(w http.ResponseWriter, r *http.Request) {
+	session := s.getSession(r)
+	defer s.putSession(session)
+
+	log.Info("Text Chat Request", "session", session.id)
+
 	request := Request{}
 
 	err := json.NewDecoder(r.Body).Decode(&request)
@@ -56,7 +99,9 @@ func (s *Server) ChatRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	message, err := s.host.RunPrompt(context.Background(), request.Prompt)
+	log.Info("Transcribed Prompt: " + request.Prompt)
+
+	message, err := s.host.RunPrompt(context.Background(), request.Prompt, &session.messages)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
