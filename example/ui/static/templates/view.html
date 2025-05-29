@@ -1,0 +1,15 @@
+<div class="post-container">
+    <div class="user-header">
+        <img src="/static/{{ icon }}" alt="Profile Picture" class="profile-pic" style="max-width: calc(100dvw - 40px);">
+        <div class="user-info">
+            <span class="username">{{ username }}</span>
+            <span class="handle-time">{{ postedtime }}</span>
+        </div>
+    </div>
+    <div class="post-content">
+{{ content }}
+{{#if image}}
+<img src="{{ image }}" alt="Post Image" class="news-image">
+{{/if}}
+    </div>
+</div>

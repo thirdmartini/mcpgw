@@ -283,3 +283,18 @@ func createMCPClients(
 
 	return clients, nil
 }
+
+func toolResultToString(toolResult *mcp.CallToolResult) string {
+	toolResult.Content = append(toolResult.Content, mcp.TextContent{})
+
+	content := ""
+	for _, mcpContent := range toolResult.Content {
+		switch v := mcpContent.(type) {
+		case mcp.TextContent:
+			content += "[ Text:" + v.Text + " ]"
+		case mcp.ImageContent:
+			content += "[(Image Data)]"
+		}
+	}
+	return content
+}

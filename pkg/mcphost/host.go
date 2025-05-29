@@ -22,6 +22,11 @@ type Host struct {
 	tools        []llm.Tool
 }
 
+type ChatResponse struct {
+	Message string   `json:"message"`
+	Images  []string `json:"images"`
+}
+
 func (h *Host) Close() {
 	for name, client := range h.clients {
 		if err := client.Close(); err != nil {
@@ -32,14 +37,46 @@ func (h *Host) Close() {
 	}
 }
 
-func (h *Host) RunPrompt(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (string, error) {
+type ToolDescription struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+func (h *Host) ListTools() []ToolDescription {
+	descriptions := []ToolDescription{}
+
+	for _, tool := range h.tools {
+		descriptions = append(descriptions, ToolDescription{
+			Name:        tool.Name,
+			Description: tool.Description,
+		})
+	}
+	return descriptions
+}
+
+func (h *Host) RunPrompt(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (*ChatResponse, error) {
 	message, err := h.runPromptNonInteractive(ctx, prompt, messages)
 	return message, err
 }
 
-func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (string, error) {
+func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (*ChatResponse, error) {
 	var message llm.Message
 	var err error
+	var response ChatResponse
+
+	// This appends the prompt to the history for next time
+	if prompt != "" {
+		*messages = append(
+			*messages,
+			history.HistoryMessage{
+				Role: "user",
+				Content: []history.ContentBlock{{
+					Type: "text",
+					Text: prompt,
+				}},
+			},
+		)
+	}
 
 	// Convert MessageParam to llm.Message for provider
 	// Messages already implement llm.Message interface
@@ -56,13 +93,20 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 	)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var messageContent []history.ContentBlock
 
+	log.Infof("runPrompt:%s::%s\n", prompt, message.GetContent())
+
 	if message.GetContent() != "" {
-		return message.GetContent(), nil
+		response.Message = message.GetContent()
+
+		/*
+			return &ChatResponse{
+				Message: message.GetContent(),
+			}, nil*/
 	}
 
 	toolResults := []history.ContentBlock{}
@@ -86,97 +130,83 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 			Input: input,
 		})
 
-		// Log usage statistics if available
-		inputTokens, outputTokens := message.GetUsage()
-		if inputTokens > 0 || outputTokens > 0 {
-			log.Info("Usage statistics",
-				"input_tokens", inputTokens,
-				"output_tokens", outputTokens,
-				"total_tokens", inputTokens+outputTokens)
-		}
-
 		parts := strings.Split(toolCall.GetName(), "__")
 		if len(parts) != 2 {
-			fmt.Printf(
-				"Error: Invalid tool name format: %s\n",
-				toolCall.GetName(),
-			)
+			log.Warnf("Error: Invalid tool name format: %s\n", toolCall.GetName())
 			continue
 		}
 
 		serverName, toolName := parts[0], parts[1]
 		mcpClient, ok := h.clients[serverName]
 		if !ok {
-			fmt.Printf("Error: Server not found: %s\n", serverName)
+			log.Warnf("Error: Server not found: %s\n", serverName)
 			continue
 		}
 
 		var toolArgs map[string]interface{}
 		if err := json.Unmarshal(input, &toolArgs); err != nil {
-			fmt.Printf("Error parsing tool arguments: %v\n", err)
+			log.Warnf("Error parsing tool arguments: %v\n", err)
 			continue
 		}
 
 		log.Info("Calling tool", "tool_name", toolName, "tool_args", toolArgs, "server", serverName)
 
-		var toolResultPtr *mcp.CallToolResult
 		req := mcp.CallToolRequest{}
 		req.Params.Name = toolName
 		req.Params.Arguments = toolArgs
-		toolResultPtr, err = mcpClient.CallTool(
+		toolResult, err := mcpClient.CallTool(
 			context.Background(),
 			req,
 		)
 
-		log.Info("Tool call completed", "tool_name", toolName, "tool_args", toolArgs, "server", serverName)
-
 		if err != nil {
+			log.Error("Tool call error", "tool_name", toolName, "tool_args", toolArgs, "server", serverName, "error", err)
 			errMsg := fmt.Sprintf(
 				"Error calling tool %s: %v",
 				toolName,
 				err,
 			)
-			log.Errorf(errMsg)
 
-			// Add error message as tool result
+			// Add an error message as tool result
 			toolResults = append(toolResults, history.ContentBlock{
 				Type:      "tool_result",
 				ToolUseID: toolCall.GetID(),
-				Content: []history.ContentBlock{{
-					Type: "text",
-					Text: errMsg,
-				}},
+				Text:      errMsg,
+				Content: []mcp.Content{
+					mcp.TextContent{
+						Type: "text",
+						Text: errMsg,
+					},
+				},
 			})
 			continue
 		}
 
-		toolResult := *toolResultPtr
-
+		log.Info("Tool call success", "tool_name", toolName, "tool_args", toolArgs, "server", serverName, "result", toolResultToString(toolResult))
 		if toolResult.Content != nil {
-			log.Debug("raw tool result content", "content", toolResult.Content)
-
-			// Create the tool result block
-			resultBlock := history.ContentBlock{
-				Type:      "tool_result",
-				ToolUseID: toolCall.GetID(),
-				Content:   toolResult.Content,
-			}
+			//log.Debug("raw tool result content", "content", toolResult.Content)
 
 			// Extract text content
 			var resultText string
 			// Handle array content directly since we know it's []interface{}
 			for _, item := range toolResult.Content {
-				if contentMap, ok := item.(mcp.TextContent); ok {
-					resultText += fmt.Sprintf("%v ", contentMap.Text)
+				switch v := item.(type) {
+				case mcp.TextContent:
+					resultText += fmt.Sprintf("%v ", v.Text)
+
+				case mcp.ImageContent:
+					response.Images = append(response.Images, v.Data)
+
+				default:
+					panic(fmt.Sprintf("Unknown content type: %T", item))
 				}
 			}
-
-			resultBlock.Text = strings.TrimSpace(resultText)
-			log.Debug("created tool result block",
-				"block", resultBlock,
-				"tool_id", toolCall.GetID())
-
-			toolResults = append(toolResults, resultBlock)
+			toolResults = append(toolResults, history.ContentBlock{
+				Type:      "tool_result",
+				ToolUseID: toolCall.GetID(),
+				Text:      strings.TrimSpace(resultText),
+				Content:   toolResult.Content,
+			})
 		}
 	}
 
@@ -184,6 +214,8 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 		Role:    message.GetRole(),
 		Content: messageContent,
 	})
+
+	fmt.Printf("runPrompt:%s::TR::%v\n", prompt, len(toolResults))
 
 	if len(toolResults) > 0 {
 		for _, toolResult := range toolResults {
@@ -193,10 +225,18 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 			})
 		}
 		// Make another call to get Claude's response to the tool results
-		log.Info("Calling LLM to interpret tool result")
-		return h.runPromptNonInteractive(ctx, "", messages)
+		log.Infof("Calling LLM to interpret tool result: m=%v\n", len(*messages))
+
+		pr, err := h.runPromptNonInteractive(ctx, "", messages)
+		if err != nil {
+			return nil, err
+		}
+
+		response.Message = pr.Message
+		response.Images = append(response.Images, pr.Images...)
+		return &response, nil
 	}
-	return "", nil
+	return &response, nil
 }
 
 func (h *Host) WithServerConfig(configSrc string) error {

@@ -15,6 +15,7 @@ var (
 	serverAddress    string
 	serverRoot       string
 	whisperAddress   string
+	meloAddress      string
 
 	openaiBaseURL    string // Base URL for OpenAI API
 	anthropicBaseURL string // Base URL for Anthropic API
@@ -51,7 +52,7 @@ func main() {
 	rootCmd.PersistentFlags().
 		StringVar(&configFile, "config", "", "config file (default is $HOME/.mcp.json)")
 	rootCmd.PersistentFlags().
-		StringVar(&systemPromptFile, "system-prompt", "", "system prompt json file")
+		StringVar(&systemPromptFile, "system-prompt", "system.json", "system prompt json file")
 	rootCmd.PersistentFlags().
 		IntVar(&messageWindow, "message-window", 10, "number of messages to keep in context")
 	rootCmd.PersistentFlags().
@@ -65,8 +66,12 @@ func main() {
 		StringVarP(&serverRoot, "server-root", "", "example/ui",
 			"The server root to use for your UI experience")
 	rootCmd.PersistentFlags().
-		StringVarP(&whisperAddress, "whisper", "w", "http://localhost:8081",
+		StringVarP(&whisperAddress, "whisper", "w", "",
 			"The whisper server address to use for transcription")
+
+	rootCmd.PersistentFlags().
+		StringVarP(&meloAddress, "melo", "", "",
+			"The MeloTTS server address to use for transcription")
 
 	// Add debug flag
 	rootCmd.PersistentFlags().

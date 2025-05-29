@@ -1,34 +1,262 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="background: black; height: 100dvh; width: 100dvw; overflow: clip;">
 
 <head>
     <meta charset="utf-8">
-    <title>Transcription Demo</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <title>Agentic Samantha</title>
+
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/handlebars.js"></script>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/static/manifest.json">
+    <style>
+        body {
+            #font-family: Arial, sans-serif;
+            background-color: black;
+            margin: 0px;
+            padding: 0px;
+            color: black;
+            position: absolute;
+            font-family: monospace;
+            width: 100dvw;
+            height: 100dvh;
+            overflow: clip;
+        }
+
+        .audio-element.hide {
+            display: none;
+        }
+
+        .query-container {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            padding: 20px;
+            display: flex;
+            text-align: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .main {
+            background: black;
+            text-align: center;
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            background: black;
+        }
+
+        .history {
+            width:100%;
+            height:calc(100dvh - 200px);
+            text-align: left;
+            overflow-y: scroll;
+/*            background: #27a527;*/
+        }
+
+        .post-container {
+            box-sizing: border-box;
+            background-color: black;
+            border-radius: 0px;
+            border-width: 1px;
+            border-style: solid;
+            border-color: #414142;
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 10px;
+        }
+
+        .post-content {
+            margin: 0px 0;
+            padding-left: 50px;
+            font-size: 14px;
+            color: white;
+            white-space: pre-wrap;
+        }
+
+        .user-header {
+            display: flex;
+            align-items: center;
+            /*margin-bottom: 10px;*/
+        }
+
+        .profile-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+    .user-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .username {
+        font-weight: bold;
+        font-size: 14px;
+        color: white;
+        margin-bottom: 5px;
+    }
+
+    .handle-time {
+        color: #657786;
+        font-size: 13px;
+        color:lightslategrey;
+    }
+
+    .show-more {
+        background: none;
+        border: none;
+        color: #1da1f2;
+        font-size: 14px;
+        cursor: pointer;
+        padding: 5px 0;
+    }
+
+    .news-image {
+        position: relative;
+        margin-top: 10px;
+        justify-content: center;
+    }
+
+    .news-image img {
+        width: 100%;
+        border-radius: 8px;
+    }
+
+        .search-widget {
+            background-color: #2a2a2a;
+            border-radius: 25px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            width: calc(100dvw - 50px);
+            flex-direction: column;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .search-input {
+            flex: 1;
+            width: calc(100% - 15px);
+            background: none;
+            border: none;
+            outline: none;
+            color: #ccc;
+            font-size: 16px;
+            padding: 5px 10px;
+            text-align: left;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+
+        .action-btn, .icon-btn {
+            background-color: #3a3a3a;
+            border: none;
+            border-radius: 25px;
+            height: 50px;
+            padding: 5px 10px;
+            color: #ccc;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .icon-btn {
+            padding: 5px;
+            font-size: 16px;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-btn:hover, .icon-btn:hover {
+            background-color: #4a4a4a;
+        }
+
+        .title {
+            color: #fff;
+            font-size: 18px;
+            margin: 0;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        .header-icon-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header-icon-btn {
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        .header-icon-btn:hover {
+            background-color: #333;
+        }
+        .header-widget {
+            background-color: #000;
+            display: flex;
+            align-items: center;
+            padding: 10px 20px;
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: space-between;
+        }
+
+
+    </style>
+
 </head>
 
 <body>
-<div class="audio-recording-container">
-    <h1 class="title" id="mode">Agent: Jarvis</h1>
-    <button id= "mic" style="background: #007700;height:50px; width:150px;" aria-hidden="true" onclick="toggleRecording();">Ready</button>
-    <br>
+<div class="main">
+    <header class="header-widget">
+        <div class="counter">3</div>
+        <h1 class="title">Samantha</h1>
+        <div class="header-icon-group">
+            <button class="header-icon-btn" title="History">📋</button>
+            <button class="header-icon-btn" title="New Chat" onclick="newConversation();"> 🗑️</button>
+        </div>
+    </header>
 
-    <div style="padding-left: 40px;padding-right: 50px;width:100%;text-align: left;"><b>User</b></div>
-    <div id="prompt" style="padding: 50px;width:100%;text-align: left;">
+    <div id="history" class="history">
     </div>
 
-    <div style="padding-left: 40px;padding-right: 50px;width:100%;text-align: left;"><b>Agent</b></div>
-    <div id="text" style="padding: 50px;width:100%;text-align: left;">
-    </div>
-    <div id="debug" style="padding-top: 200px;">
+    <div class="query-container">
+        <div class="search-widget">
+            <input id="chat-input" type="textarea" wrap="soft" placeholder="Ask anything" class="search-input" onchange="chatRequestClicked();">
+            <div class="button-group">
+                <button class="action-btn" onclick="newConversation();">New Chat</button>
+                <!-- <button class="icon-btn">📎</button> -->
+
+                <button id="mic" class="icon-btn" style="position: absolute;right: 50px" onclick="toggleRecording();">🎙️</button>
+            </div>
+        </div>
     </div>
 </div>
 
-<audio controls class="audio-element hide" id="player">
-</audio>
 
 <script type="module">
-    import * as Audio from "../static/js/recorder.js";
+    import * as Audio from "/static/js/recorder.js";
+
 
     const containers = ['webm', 'ogg', 'mp4', 'x-matroska', '3gpp', '3gpp2',
         '3gp2', 'quicktime', 'mpeg', 'aac', 'flac', 'wav']
@@ -54,11 +282,32 @@
     console.log('Supported Video codecs:', supportedVideoCodecs)
 
 
+    /* Templates need to load first */
+    let viewTemplate = null
+    App.GetTemplate("/static/templates/view.html", function (data) {
+        viewTemplate = Handlebars.compile(data);
+        initApplication()
+
+        /*
+        appendRequest("Hello, how can I help you today?")
+        appendResponse("I'm doing well yourself?", null)
+        appendRequest("I'm just here for a chat, anything you want to talk about?")
+        appendThinking("Thinking...")
+        appendResponse("Anything really!", null, true)
+        appendRequest("Hello, how can I help you today?")
+        appendResponse("I'm doing well yourself?", null)
+        appendRequest("I'm just here for a chat, anything you want to talk about? ")
+        appendResponse("I'm doing well yourself?", null)*/
+    })
+
+
+
+    /*
     let debug = document.getElementById("debug")
     debug.innerHTML = supportedAudios + " | " + supportedAudioCodecs
 
     let mode = document.getElementById("mode")
-
+*/
 
     let recorder = Audio.NewRecorder()
     let isRecording = false
@@ -67,6 +316,169 @@
         audioBitsPerSecond: 16000,
         mimeType: "audio/mp4",
     };
+
+    function uuidv4() {
+        return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
+            (+c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> +c / 4).toString(16)
+        );
+    }
+
+    let chatId = uuidv4()
+
+    var dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+
+    function createElementFromHTML(htmlString) {
+        let div = document.createElement('div');
+        div.innerHTML = htmlString.trim();
+        return div.firstChild;
+    }
+
+    function chatRequest(prompt) {
+        appendRequest(prompt)
+        appendThinking("Thinking..")
+
+        fetch('/api/v.1/chat', {
+            method: 'POST',
+            headers: {
+                "X-Conversation-Id": chatId,
+            },
+            body: JSON.stringify({
+                "Prompt": prompt,
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            appendResponse(data.Message, data.Images, true)
+            if (data.Audio != null) {
+                playAudio(data.Audio)
+            }
+        })
+    }
+
+    function initApplication() {
+        fetch('/api/v.1/tools', {
+            method: 'GET',
+            headers: {
+                "X-Conversation-Id": chatId,
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            let introMessages = new Array()
+            introMessages.push("Hi, I'm Samantha, a simple Agentic AI.\n")
+            introMessages.push("You can ask me questions about anything, and I can also perform task with the tools provided to me.\n")
+
+            introMessages.push("Here are some tools I can use:\n")
+
+            for (let i = 0; i < data.length; i++) {
+                let tool = data[i]
+
+                console.log(tool)
+
+                introMessages.push(tool.name)
+                introMessages.push("   " + tool.description)
+            }
+            appendResponse( introMessages.join("\n"), null, true)
+
+        })
+        .catch(error => {
+            console.log('Error uploading audio:', error);
+        });
+    }
+
+
+    let appendRequest = function(text) {
+        let history = document.getElementById("history")
+
+        let content = viewTemplate({
+            icon: "user.png",
+            username: "You",
+            postedtime: (new Date()).toLocaleDateString("en-US", dateOptions),
+            content: text,
+        })
+        history.appendChild(createElementFromHTML(content))
+        history.scrollTop = history.scrollHeight; // scroll to bottom
+    }
+
+    let appendThinking = function(text, images) {
+        let history = document.getElementById("history")
+        let post = {
+            icon: "samantha.png",
+            username: "Samantha (Agentic)",
+            postedtime: (new Date()).toLocaleDateString("en-US", dateOptions),
+            content: "Thinking...",
+        }
+        history.appendChild(createElementFromHTML(viewTemplate(post)))
+        history.scrollTop = history.scrollHeight;
+    }
+
+    let appendResponse = function(text, images, removeThinking) {
+        let history = document.getElementById("history")
+
+        if (removeThinking == true) {
+            history.lastChild.remove()
+        }
+
+        let post = {
+            icon: "samantha.png",
+            username: "Samantha (Agentic)",
+            postedtime: (new Date()).toLocaleDateString("en-US", dateOptions),
+            content: text,
+        }
+
+        if (images != null ) {
+            images.forEach(function (item, index){
+                post.image = "data:image/jpeg;base64,"+item
+
+            })
+        }
+        history.appendChild(createElementFromHTML(viewTemplate(post)))
+        history.scrollTop = history.scrollHeight;
+    }
+
+    const getAudioContext =  () => {
+        AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioContent = new AudioContext();
+        return audioContent;
+    };
+
+    function base64ToArrayBuffer(base64) {
+        var binaryString = atob(base64);
+        var bytes = new Uint8Array(binaryString.length);
+        for (var i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    let playAudio = async function(rawWav) {
+        const audioContext = getAudioContext();
+        const audioBuffer = await audioContext.decodeAudioData(base64ToArrayBuffer(rawWav));
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+
+// play audio
+        source.start();
+        //Audio.PlayOnce(atob(rawWav))
+    }
+
+    window.newConversation = function() {
+        chatId = uuidv4()
+        console.log("new chat id:", chatId)
+        let history = document.getElementById("history")
+        history.innerHTML = ""
+        appendResponse("What do you need help with today?", null, false)
+    }
+
+    window.chatRequestClicked = function() {
+        let input = document.getElementById("chat-input")
+        let text = input.value
+        input.value = ""
+        chatRequest(text)
+    }
+
 
     window.toggleRecording = function() {
         let button = document.getElementById("mic");
@@ -79,25 +491,24 @@
                 console.log("captured")
             }, options).then(() => { //on success
                 button.style.background = "#ff0000"
-                button.innerHTML = "Recording"
             }).catch(error => {
                 debug.innerHTML = error
-
             })
 
         } else {
             button.style.background = "#5555ff"
-            button.innerHTML = "Thinking"
 
             recorder.Stop()
                 .then(audioAsblob => {
                     console.log("recording captured", audioAsblob)
                     //Audio.Play("player", audioAsblob)
-                    let text = document.getElementById("text")
 
                     // send the audio to the server
-                    fetch('/api/v.1/recordings/save', {
+                    fetch('/api/v.1/recordings/transcribe', {
                         method: 'POST',
+                        headers: {
+                          "X-Conversation-Id": chatId,
+                        },
                         body: audioAsblob
                     })
                     .then(response => response.json())
@@ -105,15 +516,8 @@
                         console.log('Audio uploaded successfully:', data);
                         console.log("REQUEST OK:", data);
 
-                        let prompt = document.getElementById("prompt")
-                        prompt.innerHTML = data.Prompt
-
-                        let text = document.getElementById("text")
-                        text.innerHTML = data.Message
-                        //mode.innerHTML = "Mode: " + data.mode
-                        button.style.background = "#007700"
-                        button.innerHTML = "Ready"
-
+                        button.style.background = "#3a3a3a"
+                        chatRequest(data.Prompt)
                     })
                     .catch(error => {
                         console.log('Error uploading audio:', error);
@@ -132,6 +536,12 @@
                 });
         }
     }
+
+
+
+
+
+    // fill in sample for chat
 </script>
 </body>
 </html>

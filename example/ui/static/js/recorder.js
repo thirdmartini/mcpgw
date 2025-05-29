@@ -4,6 +4,21 @@ var audioElementSource = document.getElementsByClassName("audio-element")[0]
     .getElementsByTagName("source")[0];
 */
 
+export function PlayOnce(id, rawWav) {
+    const blob = new Blob([rawWav], {type: "audio/wav"});
+    const blobUrl = URL.createObjectURL(blob);
+
+    //console.log("Playing audio:", blobUrl);
+    //Play("player", blob);
+
+    const audio = new Audio();
+    audio.src = blobUrl;
+    audio.controls = true;
+    document.body.appendChild(audio);
+    audio.play();
+}
+
+
 export function Play(id, recorderAudioAsBlob) {
     //read content of files (Blobs) asynchronously
     let reader = new FileReader();

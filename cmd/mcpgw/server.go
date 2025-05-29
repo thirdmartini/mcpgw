@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -14,9 +15,32 @@ import (
 	"github.com/thirdmartini/mcpgw/pkg/llm/ollama"
 	"github.com/thirdmartini/mcpgw/pkg/llm/openai"
 	"github.com/thirdmartini/mcpgw/pkg/mcphost"
+	"github.com/thirdmartini/mcpgw/pkg/speaker"
 	"github.com/thirdmartini/mcpgw/pkg/transcriber"
 	"github.com/thirdmartini/mcpgw/server"
 )
+
+// loadSystemPrompt loads the system prompt from a JSON file
+func loadSystemPrompt(filePath string) (string, error) {
+	if filePath == "" {
+		return "", nil
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading config file: %v", err)
+	}
+
+	// Parse only the systemPrompt field
+	var config struct {
+		SystemPrompt string `json:"systemPrompt"`
+	}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return "", fmt.Errorf("error parsing config file: %v", err)
+	}
+
+	return config.SystemPrompt, nil
+}
 
 func createProvider(ctx context.Context, modelString, systemPrompt string) (llm.Provider, error) {
 	parts := strings.SplitN(modelString, ":", 2)
@@ -77,7 +101,11 @@ func createProvider(ctx context.Context, modelString, systemPrompt string) (llm.
 }
 
 func runServer(ctx context.Context) error {
-	provider, err := createProvider(ctx, modelFlag, systemPromptFile)
+	systemPrompt, _ := loadSystemPrompt(systemPromptFile)
+
+	log.Infof("SystemPrompt: %s\n", systemPrompt)
+
+	provider, err := createProvider(ctx, modelFlag, systemPrompt)
 	if err != nil {
 		return err
 	}
@@ -88,9 +116,29 @@ func runServer(ctx context.Context) error {
 	srv := server.NewServer(host)
 
 	if whisperAddress != "" {
-		log.Infof("Using Whisper transcriber at %s", whisperAddress)
+		log.Infof("Using Whisper for Speech To Text at %s", whisperAddress)
 		srv.WithTranscriber(transcriber.NewWhisper(whisperAddress))
 	}
 
-	return srv.ListenAndServe(serverAddress, serverRoot)
+	if meloAddress != "" {
+		log.Infof("Using MeloTTS for Text To Speech at %s", meloAddress)
+		srv.WithAudioEncoder(speaker.NewMelo(speaker.MeloOptions{
+			Address: meloAddress,
+			Voice:   "",
+		}))
+	}
+
+	if strings.HasPrefix(serverAddress, ":") {
+		log.Infof("Starting server at %s | http://localhost%s", serverAddress, serverAddress)
+	} else {
+		log.Infof("Starting server at %s | http://%s", serverAddress, serverAddress)
+	}
+
+	tls := true
+	if tls {
+		return srv.ListenAndServeTLS(serverAddress, serverRoot, "cert.pem", "key.pem")
+	} else {
+		return srv.ListenAndServe(serverAddress, serverRoot)
+	}
+
 }

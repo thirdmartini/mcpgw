@@ -23,3 +23,19 @@ go.work.sum
 
 # env file
 .env
+
+.DS_Store
+
+# lets not accedentayll check in our certificates
+/cert.csr
+/cert.pem
+/key.pem
+/privkey.pem
+
+/reminders
+/reminders.json
+/mcpgw
+/mcphost.json
+/.idea
+# this is just for local tools lik ffmpeg, whisper, etc
+/tools

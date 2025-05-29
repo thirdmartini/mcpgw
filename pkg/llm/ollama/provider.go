@@ -39,21 +39,9 @@ func NewProvider(model string, systemPrompt string) (*Provider, error) {
 	}, nil
 }
 
-func (p *Provider) CreateMessage(
-	ctx context.Context,
-	prompt string,
-	messages []llm.Message,
-	tools []llm.Tool,
-) (llm.Message, error) {
-	log.Debug("creating message",
-		"prompt", prompt,
-		"num_messages", len(messages),
-		"num_tools", len(tools))
-
-	// Convert generic messages to Ollama format
+func (p *Provider) convertMessages(prompt string, messages []llm.Message) []api.Message {
 	ollamaMessages := make([]api.Message, 0, len(messages)+1)
 
-	// Add system prompt if it exists
 	if p.systemPrompt != "" {
 		ollamaMessages = append(ollamaMessages, api.Message{
 			Role:    "system",
@@ -61,9 +49,9 @@ func (p *Provider) CreateMessage(
 		})
 	}
 
-	// Add existing messages
+	log.Infof("converting message: %d", len(messages))
 	for _, msg := range messages {
-		// Handle tool responses
+		log.Infof("role: %+s content:%s\n", msg.GetRole(), msg.GetContent())
 		if msg.IsToolResponse() {
 			var content string
 			imageContent := make([]api.ImageData, 0)
@@ -71,19 +59,26 @@ func (p *Provider) CreateMessage(
 			// Handle HistoryMessage format
 			if historyMsg, ok := msg.(*history.HistoryMessage); ok {
 				for _, block := range historyMsg.Content {
-					for _, c := range block.Content.([]mcp.Content) {
-						if image, ok := c.(mcp.ImageContent); ok {
-							// ImageContent returned from tool is base64-encoded
-							imageDataRaw, err := base64.StdEncoding.DecodeString(image.Data)
-							if err != nil {
-								continue
+					if mcpContent, ok := block.Content.([]mcp.Content); ok {
+						for _, c := range mcpContent {
+							switch v := c.(type) {
+							case mcp.ImageContent:
+								imageDataRaw, err := base64.StdEncoding.DecodeString(v.Data)
+								if err != nil {
+									continue
+								}
+								imageContent = append(imageContent, api.ImageData(imageDataRaw))
+
+							case mcp.TextContent:
+								// We sometimes see a result of Text:"somedata",Image:"image data",Text:""
+								content += v.Text + " "
+
+							default:
+								panic(fmt.Sprintf("unsupported content type: %T", v))
 							}
-							imageContent = append(imageContent, api.ImageData(imageDataRaw))
 						}
-					}
-					if block.Type == "tool_result" {
-						content = block.Text
-						break
+					} else {
+						log.Fatalf("not mcp content %T\n", block.Content)
 					}
 				}
 			}
@@ -133,19 +128,21 @@ func (p *Provider) CreateMessage(
 				}
 			}
 		}
-
 		ollamaMessages = append(ollamaMessages, ollamaMsg)
 	}
 
-	// Add the new prompt if not empty
+	/* this is not needed at all here,
 	if prompt != "" {
 		ollamaMessages = append(ollamaMessages, api.Message{
 			Role:    "user",
 			Content: prompt,
 		})
-	}
+	}*/
 
-	// Convert tools to Ollama format
+	return ollamaMessages
+}
+
+func (p *Provider) convertTools(tools []llm.Tool) []api.Tool {
 	ollamaTools := make([]api.Tool, len(tools))
 	for i, tool := range tools {
 		ollamaTools[i] = api.Tool{
@@ -169,6 +166,23 @@ func (p *Provider) CreateMessage(
 			},
 		}
 	}
+	return ollamaTools
+}
+
+func (p *Provider) CreateMessage(
+	ctx context.Context,
+	prompt string,
+	messages []llm.Message,
+	tools []llm.Tool,
+) (llm.Message, error) {
+	log.Debug("creating message",
+		"prompt", prompt,
+		"num_messages", len(messages),
+		"num_tools", len(tools))
+
+	ollamaMessages := p.convertMessages(prompt, messages)
+	ollamaTools := p.convertTools(tools)
+	// Convert generic messages to Ollama format
 
 	var response api.Message
 	log.Debug("creating message",
@@ -179,6 +193,10 @@ func (p *Provider) CreateMessage(
 	log.Debug("sending messages to Ollama",
 		"messages", ollamaMessages,
 		"num_tools", len(tools))
+
+	for idx, m := range ollamaMessages {
+		log.Infof("M[%d]: %+v:[%+v]", idx, m.Content, m.ToolCalls)
+	}
 
 	err := p.client.Chat(ctx, &api.ChatRequest{
 		Model:    p.model,
@@ -241,7 +259,7 @@ func (p *Provider) CreateToolResponse(
 			"result", contentStr)
 	}
 
-	// Create message with explicit tool role
+	// Create a message with an explicit tool role
 	msg := &OllamaMessage{
 		Message: api.Message{
 			Role:    "tool", // Explicitly set role to "tool"
