@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/charmbracelet/log"
@@ -27,8 +29,18 @@ type Provider struct {
 }
 
 // NewProvider creates a new Ollama provider
-func NewProvider(model string, systemPrompt string) (*Provider, error) {
-	client, err := api.ClientFromEnvironment()
+func NewProvider(host string, model string, systemPrompt string) (*Provider, error) {
+	var client *api.Client
+	var err error
+
+	if host == "" {
+		client, err = api.ClientFromEnvironment()
+	} else {
+		var u *url.URL
+		if u, err = url.Parse(host); err == nil {
+			client = api.NewClient(u, http.DefaultClient)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +61,7 @@ func (p *Provider) convertMessages(prompt string, messages []llm.Message) []api.
 		})
 	}
 
-	log.Infof("converting message: %d", len(messages))
 	for _, msg := range messages {
-		log.Infof("role: %+s content:%s\n", msg.GetRole(), msg.GetContent())
 		if msg.IsToolResponse() {
 			var content string
 			imageContent := make([]api.ImageData, 0)
@@ -198,12 +208,16 @@ func (p *Provider) CreateMessage(
 		log.Infof("M[%d]: %+v:[%+v]", idx, m.Content, m.ToolCalls)
 	}
 
-	err := p.client.Chat(ctx, &api.ChatRequest{
+	request := api.ChatRequest{
 		Model:    p.model,
 		Messages: ollamaMessages,
 		Tools:    ollamaTools,
 		Stream:   boolPtr(false),
-	}, func(r api.ChatResponse) error {
+	}
+
+	sending, err := json.MarshalIndent(&request, "", "  ")
+	log.Infof("%s\n", string(sending))
+	err = p.client.Chat(ctx, &request, func(r api.ChatResponse) error {
 		if r.Done {
 			response = r.Message
 		}

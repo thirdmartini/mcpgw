@@ -66,6 +66,8 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 
 	// This appends the prompt to the history for next time
 	if prompt != "" {
+		log.Infof("Pompt: %s\n", prompt)
+
 		*messages = append(
 			*messages,
 			history.HistoryMessage{
@@ -98,15 +100,8 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 
 	var messageContent []history.ContentBlock
 
-	log.Infof("runPrompt:%s::%s\n", prompt, message.GetContent())
-
 	if message.GetContent() != "" {
 		response.Message = message.GetContent()
-
-		/*
-			return &ChatResponse{
-				Message: message.GetContent(),
-			}, nil*/
 	}
 
 	toolResults := []history.ContentBlock{}
@@ -149,7 +144,7 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 			continue
 		}
 
-		log.Info("Calling tool", "tool_name", toolName, "tool_args", toolArgs, "server", serverName)
+		log.Info("LLM Requests Tool Call", "tool_name", toolName, "tool_args", toolArgs, "server", serverName)
 
 		req := mcp.CallToolRequest{}
 		req.Params.Name = toolName
@@ -215,8 +210,6 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 		Content: messageContent,
 	})
 
-	fmt.Printf("runPrompt:%s::TR::%v\n", prompt, len(toolResults))
-
 	if len(toolResults) > 0 {
 		for _, toolResult := range toolResults {
 			*messages = append(*messages, history.HistoryMessage{
@@ -225,7 +218,7 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 			})
 		}
 		// Make another call to get Claude's response to the tool results
-		log.Infof("Calling LLM to interpret tool result: m=%v\n", len(*messages))
+		log.Infof("Calling LLM to interpret tool results")
 
 		pr, err := h.runPromptNonInteractive(ctx, "", messages)
 		if err != nil {
@@ -239,11 +232,8 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 	return &response, nil
 }
 
-func (h *Host) WithServerConfig(configSrc string) error {
-	mcpConfig, err := loadMCPConfig(configSrc)
-	if err != nil {
-		return err
-	}
+func (h *Host) WithConfig(mcpConfig *MCPConfig) error {
+	var err error
 
 	h.clients, err = createMCPClients(mcpConfig)
 	if err != nil {
@@ -283,8 +273,16 @@ func (h *Host) WithServerConfig(configSrc string) error {
 	}
 
 	h.tools = allTools
-
 	return nil
+}
+
+func (h *Host) WithConfigFile(configSrc string) error {
+	mcpConfig, err := loadMCPConfig(configSrc)
+	if err != nil {
+		return err
+	}
+
+	return h.WithConfig(mcpConfig)
 }
 
 func NewHost(provider llm.Provider) *Host {

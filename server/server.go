@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,21 @@ type Response struct {
 	Message        string
 	Audio          string
 	Images         []string
+}
+
+func listenStringToAddress(listen string, tls bool) string {
+	var address string
+
+	if tls {
+		address = "https://"
+	} else {
+		address = "http://"
+	}
+
+	if strings.HasPrefix(listen, ":") {
+		return address + "localhost" + listen
+	}
+	return address + listen
 }
 
 func (s *Server) getSession(r *http.Request) *Session {
@@ -76,6 +92,14 @@ func (s *Server) putSession(session *Session) {
 	s.sessions[session.id] = session
 }
 
+func (s *Server) chatErrorResponse(w http.ResponseWriter, prompt string, err error) {
+	response := Response{
+		Prompt:  prompt,
+		Message: err.Error(),
+	}
+	json.NewEncoder(w).Encode(response)
+}
+
 // handleChatRequest processes a chat prompt and generates a response, optionally including audio, using the server's resources.
 func (s *Server) handleChatRequest(w http.ResponseWriter, session *Session, prompt string) {
 	log.Info("Chat Request", "session", session.id, "prompt", prompt)
@@ -83,11 +107,10 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, session *Session, prom
 	message, err := s.host.RunPrompt(context.Background(), prompt, &session.messages)
 	if err != nil {
 		log.Errorf("Error running prompt: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		s.chatErrorResponse(w, prompt, err)
 		return
 	}
 
-	log.Info("LLM Response: " + message.Message)
 	response := Response{
 		Prompt:  prompt,
 		Message: message.Message,
@@ -113,11 +136,10 @@ func (s *Server) AudioChatRequest(w http.ResponseWriter, r *http.Request) {
 	session := s.getSession(r)
 	defer s.putSession(session)
 
-	log.Info("Audio Chat Request", "session", session.id)
 	prompt, err := s.Transcribe(r.Body)
 	if err != nil {
 		log.Errorf("Error transcribing: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
+		s.chatErrorResponse(w, "[no audio]", err)
 		return
 	}
 	s.handleChatRequest(w, session, prompt)
@@ -193,6 +215,8 @@ func (s *Server) ListenAndServe(address string, root string) error {
 		WriteTimeout: 120 * time.Second,
 		ReadTimeout:  120 * time.Second,
 	}
+
+	log.Infof("Starting server at [ %s ]", listenStringToAddress(address, false))
 	return srv.ListenAndServe()
 }
 
@@ -223,6 +247,7 @@ func (s *Server) ListenAndServeTLS(address string, root string, cert, key string
 	}
 	srv.TLSConfig.GetCertificate = kpr.GetCertificateFunc()
 
+	log.Infof("Starting server at [ %s ]", listenStringToAddress(address, true))
 	return srv.ListenAndServeTLS("", "")
 }
 

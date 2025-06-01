@@ -31,7 +31,7 @@ go.work.sum
 /cert.pem
 /key.pem
 /privkey.pem
-
+/config.json
 /reminders
 /reminders.json
 /mcpgw

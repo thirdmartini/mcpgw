@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/log"
 
@@ -20,125 +19,102 @@ import (
 	"github.com/thirdmartini/mcpgw/server"
 )
 
-// loadSystemPrompt loads the system prompt from a JSON file
-func loadSystemPrompt(filePath string) (string, error) {
-	if filePath == "" {
-		return "", nil
+func createInferenceProvider(ctx context.Context, config *InferenceProvider) (llm.Provider, error) {
+	if config == nil {
+		return nil, fmt.Errorf("inference provider not provided")
 	}
 
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", fmt.Errorf("error reading config file: %v", err)
-	}
-
-	// Parse only the systemPrompt field
-	var config struct {
-		SystemPrompt string `json:"systemPrompt"`
-	}
-	if err := json.Unmarshal(data, &config); err != nil {
-		return "", fmt.Errorf("error parsing config file: %v", err)
-	}
-
-	return config.SystemPrompt, nil
-}
-
-func createProvider(ctx context.Context, modelString, systemPrompt string) (llm.Provider, error) {
-	parts := strings.SplitN(modelString, ":", 2)
-	if len(parts) < 2 {
-		return nil, fmt.Errorf(
-			"invalid model format. Expected provider:model, got %s",
-			modelString,
-		)
-	}
-
-	provider := parts[0]
-	model := parts[1]
-
-	switch provider {
+	switch config.Provider {
 	case "anthropic":
-		apiKey := anthropicAPIKey
-		if apiKey == "" {
-			apiKey = os.Getenv("ANTHROPIC_API_KEY")
-		}
-
-		if apiKey == "" {
-			return nil, fmt.Errorf(
-				"Anthropic API key not provided. Use --anthropic-api-key flag or ANTHROPIC_API_KEY environment variable",
-			)
-		}
-		return anthropic.NewProvider(apiKey, anthropicBaseURL, model, systemPrompt), nil
+		return anthropic.NewProvider(config.Token, config.Host, config.Model, config.SystemPrompt), nil
 
 	case "ollama":
-		return ollama.NewProvider(model, systemPrompt)
+		return ollama.NewProvider(config.Host, config.Model, config.SystemPrompt)
 
 	case "openai":
-		apiKey := openaiAPIKey
-		if apiKey == "" {
-			apiKey = os.Getenv("OPENAI_API_KEY")
-		}
-
-		if apiKey == "" {
-			return nil, fmt.Errorf(
-				"OpenAI API key not provided. Use --openai-api-key flag or OPENAI_API_KEY environment variable",
-			)
-		}
-		return openai.NewProvider(apiKey, openaiBaseURL, model, systemPrompt), nil
+		return openai.NewProvider(config.Token, config.Host, config.Model, config.SystemPrompt), nil
 
 	case "google":
-		apiKey := googleAPIKey
-		if apiKey == "" {
-			apiKey = os.Getenv("GOOGLE_API_KEY")
-		}
-		if apiKey == "" {
-			// The project structure is provider specific, but Google calls this GEMINI_API_KEY in e.g. AI Studio. Support both.
-			apiKey = os.Getenv("GEMINI_API_KEY")
-		}
-		return google.NewProvider(ctx, apiKey, model, systemPrompt)
+		return google.NewProvider(ctx, config.Token, config.Model, config.SystemPrompt)
 
 	default:
-		return nil, fmt.Errorf("unsupported provider: %s", provider)
+		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
 	}
+}
+
+func createSpeechToTextProvider(config *InferenceProvider) (transcriber.Transcriber, error) {
+	if config == nil {
+		return nil, fmt.Errorf("speech to text provider not provided")
+	}
+
+	switch config.Provider {
+	case "whisper":
+		return transcriber.NewWhisper(config.Host), nil
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
+	}
+}
+
+func createTextToSpeechProvider(config *InferenceProvider) (speaker.Engine, error) {
+	if config == nil {
+		return nil, fmt.Errorf("speech to text provider not provided")
+	}
+
+	switch config.Provider {
+	case "melo", "melotts":
+		return speaker.NewMelo(speaker.MeloOptions{
+			Address: config.Host,
+			Voice:   "",
+		}), nil
+
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
+	}
+}
+
+func loadConfig(configFile string) (*Config, error) {
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file: %v", err)
+	}
+
+	config := &Config{}
+	if err = json.Unmarshal(data, config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
 }
 
 func runServer(ctx context.Context) error {
-	systemPrompt, _ := loadSystemPrompt(systemPromptFile)
+	config, err := loadConfig(configFile)
+	if err != nil {
+		return err
+	}
 
-	log.Infof("SystemPrompt: %s\n", systemPrompt)
-
-	provider, err := createProvider(ctx, modelFlag, systemPrompt)
+	provider, err := createInferenceProvider(ctx, config.Inference)
 	if err != nil {
 		return err
 	}
 
 	host := mcphost.NewHost(provider)
-	host.WithServerConfig(configFile)
-
+	host.WithConfig(config.Servers)
 	srv := server.NewServer(host)
 
-	if whisperAddress != "" {
-		log.Infof("Using Whisper for Speech To Text at %s", whisperAddress)
-		srv.WithTranscriber(transcriber.NewWhisper(whisperAddress))
+	log.Infof("Using Inference provider: %sn", provider.Name())
+	if transcriber, err := createSpeechToTextProvider(config.SpeechToText); err == nil {
+		log.Infof("Using speech to text provider: %s", config.SpeechToText.Provider)
+		srv.WithTranscriber(transcriber)
 	}
 
-	if meloAddress != "" {
-		log.Infof("Using MeloTTS for Text To Speech at %s", meloAddress)
-		srv.WithAudioEncoder(speaker.NewMelo(speaker.MeloOptions{
-			Address: meloAddress,
-			Voice:   "",
-		}))
+	if speaker, err := createTextToSpeechProvider(config.TextToSpeech); err == nil {
+		log.Infof("Using speech to text provider: %s", config.TextToSpeech.Provider)
+		srv.WithAudioEncoder(speaker)
 	}
 
-	if strings.HasPrefix(serverAddress, ":") {
-		log.Infof("Starting server at %s | http://localhost%s", serverAddress, serverAddress)
+	if config.UI.TLS {
+		return srv.ListenAndServeTLS(config.UI.Listen, config.UI.Root, "cert.pem", "key.pem")
 	} else {
-		log.Infof("Starting server at %s | http://%s", serverAddress, serverAddress)
+		return srv.ListenAndServe(config.UI.Listen, config.UI.Root)
 	}
-
-	tls := true
-	if tls {
-		return srv.ListenAndServeTLS(serverAddress, serverRoot, "cert.pem", "key.pem")
-	} else {
-		return srv.ListenAndServe(serverAddress, serverRoot)
-	}
-
 }

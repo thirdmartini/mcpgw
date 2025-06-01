@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	
+
 	"github.com/thirdmartini/mcpgw/pkg/history"
 	"github.com/thirdmartini/mcpgw/pkg/llm"
 )
@@ -177,6 +177,8 @@ func (p *Provider) CreateMessage(
 		}
 	}
 
+	log.Infof("Using model: %s\n", p.model)
+
 	// Make the API call
 	resp, err := p.client.CreateChatCompletion(ctx, CreateRequest{
 		Model:       p.model,
@@ -186,6 +188,7 @@ func (p *Provider) CreateMessage(
 		Temperature: 0.7,
 	})
 	if err != nil {
+		log.Infof("openai: %v [%+v]\n", err, resp)
 		return nil, err
 	}
 

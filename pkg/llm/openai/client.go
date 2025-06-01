@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -58,10 +59,13 @@ func (c *Client) CreateChatCompletion(ctx context.Context, req CreateRequest) (*
 				Code    string `json:"code"`
 			} `json:"error"`
 		}
-		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+
+		data, _ := io.ReadAll(resp.Body)
+
+		if err := json.Unmarshal(data, &errResp); err != nil {
 			return nil, fmt.Errorf("error response with status %d", resp.StatusCode)
 		}
-		return nil, fmt.Errorf("%s: %s", errResp.Error.Type, errResp.Error.Message)
+		return nil, fmt.Errorf("%s[%s]: %s: %s", resp.Status, string(data), errResp.Error.Type, errResp.Error.Message)
 	}
 
 	var response APIResponse
