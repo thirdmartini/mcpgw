@@ -1,18 +1,6 @@
 package mcphost
 
-import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"strings"
-
-	"github.com/charmbracelet/log"
-	"github.com/mark3labs/mcp-go/mcp"
-
-	"github.com/thirdmartini/mcpgw/pkg/history"
-	"github.com/thirdmartini/mcpgw/pkg/llm"
-)
-
+/*
 func (h *Host) runToolUse(ctx context.Context, message llm.Message, messages *[]history.HistoryMessage) (*ChatResponse, error) {
 	var messageContent []history.ContentBlock
 	var toolResults []history.ContentBlock
@@ -198,3 +186,4 @@ func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, mess
 
 	//response, err := h.runToolUse(ctx, message, messages)
 }
+*/

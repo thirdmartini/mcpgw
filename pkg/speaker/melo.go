@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 )
+
+var emojiRx = regexp.MustCompile(`[\x{1F600}-\x{1F6FF}|[\x{2600}-\x{26FF}]|[\x{1F300}-\x{1F5FF}]`)
 
 type MeloOptions struct {
 	Address string
@@ -27,7 +30,7 @@ type MeloRequest struct {
 func (s *Melo) Say(text string) (SpeechStream, error) {
 	mr := MeloRequest{
 		Voice: s.opts.Voice,
-		Text:  text,
+		Text:  emojiRx.ReplaceAllString(text, ``),
 	}
 
 	data, err := json.Marshal(&mr)

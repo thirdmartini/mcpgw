@@ -267,6 +267,8 @@ func (s *Server) WithAudioEncoder(speaker speaker.Engine) *Server {
 }
 
 func NewServer(host *mcphost.Host) *Server {
+	log.SetLevel(log.DebugLevel)
+
 	return &Server{
 		host:     host,
 		sessions: make(map[string]*Session),

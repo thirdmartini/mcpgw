@@ -95,6 +95,7 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 	)
 
 	if err != nil {
+		log.Error("Failed to create a message", "error", err)
 		return nil, err
 	}
 
