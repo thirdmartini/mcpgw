@@ -10,6 +10,7 @@ type InferenceProvider struct {
 	Token        string
 	Model        string
 	SystemPrompt string
+	ContextSize  int64
 	Options      map[string]interface{}
 }
 

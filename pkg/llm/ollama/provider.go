@@ -209,10 +209,12 @@ func (p *Provider) CreateMessage(
 	}
 
 	request := api.ChatRequest{
-		Model:    p.model,
+		Model: p.model,
+
 		Messages: ollamaMessages,
 		Tools:    ollamaTools,
 		Stream:   boolPtr(false),
+		Options:  map[string]interface{}{},
 	}
 
 	sending, err := json.MarshalIndent(&request, "", "  ")
@@ -220,6 +222,8 @@ func (p *Provider) CreateMessage(
 	err = p.client.Chat(ctx, &request, func(r api.ChatResponse) error {
 		if r.Done {
 			response = r.Message
+			
+			log.Infof("Eval: %d %d\n", r.Metrics.EvalCount, r.Metrics.PromptEvalCount)
 		}
 		return nil
 	})
