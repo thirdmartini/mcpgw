@@ -23,13 +23,12 @@ func boolPtr(b bool) *bool {
 
 // Provider implements the Provider interface for Ollama
 type Provider struct {
-	client       *api.Client
-	model        string
-	systemPrompt string
+	client *api.Client
+	model  string
 }
 
 // NewProvider creates a new Ollama provider
-func NewProvider(host string, model string, systemPrompt string) (*Provider, error) {
+func NewProvider(host string, model string) (*Provider, error) {
 	var client *api.Client
 	var err error
 
@@ -45,21 +44,13 @@ func NewProvider(host string, model string, systemPrompt string) (*Provider, err
 		return nil, err
 	}
 	return &Provider{
-		client:       client,
-		model:        model,
-		systemPrompt: systemPrompt,
+		client: client,
+		model:  model,
 	}, nil
 }
 
 func (p *Provider) convertMessages(prompt string, messages []llm.Message) []api.Message {
-	ollamaMessages := make([]api.Message, 0, len(messages)+1)
-
-	if p.systemPrompt != "" {
-		ollamaMessages = append(ollamaMessages, api.Message{
-			Role:    "system",
-			Content: p.systemPrompt,
-		})
-	}
+	ollamaMessages := make([]api.Message, 0, len(messages))
 
 	for _, msg := range messages {
 		if msg.IsToolResponse() {
@@ -230,7 +221,7 @@ func (p *Provider) CreateMessage(
 		"num_tools", len(tools))
 
 	for idx, m := range ollamaMessages {
-		log.Infof("M[%d]: %+v:[%+v]", idx, m.Content, m.ToolCalls)
+		log.Infof("M[%d]::%s:%+v->[%+v]", idx, m.Role, m.Content, m.ToolCalls)
 	}
 
 	request := api.ChatRequest{
@@ -245,18 +236,14 @@ func (p *Provider) CreateMessage(
 	}
 
 	response := &Message{}
-
-	//sending, err := json.MarshalIndent(&request, "", "  ")
-	//log.Infof("%s\n", string(sending))
-
 	err := p.client.Chat(ctx, &request, func(r api.ChatResponse) error {
 		if r.Done {
 			response.metrics = r.Metrics
 			response.message = r.Message
 		}
+		//log.Debugf("=>%+v", response)
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

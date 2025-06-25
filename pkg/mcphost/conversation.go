@@ -70,3 +70,33 @@ func (s *Conversation) pruneMessages(messages []history.HistoryMessage) []histor
 	}
 	return prunedMessages
 }
+
+func (s *Conversation) Append(message history.HistoryMessage) {
+	s.Messages = append(s.Messages, message)
+}
+
+func (s *Conversation) LastReply() *history.HistoryMessage {
+	return &s.Messages[len(s.Messages)-1]
+}
+
+func (s *Conversation) LastResponse() *ChatResponse {
+	history := s.Messages[len(s.Messages)-1]
+
+	response := &ChatResponse{
+		Message: history.GetContent(),
+		Images:  history.GetImages(),
+	}
+	// check to see if the previous previous history has an image content block
+
+	if len(response.Images) == 0 {
+		// check history 1 back
+		if len(s.Messages)-2 >= 0 {
+			history = s.Messages[len(s.Messages)-2]
+			if history.IsToolResponse() {
+				response.Images = history.GetImages()
+			}
+		}
+	}
+
+	return response
+}

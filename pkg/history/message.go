@@ -28,6 +28,14 @@ func (m *HistoryMessage) GetContent() string {
 	return strings.TrimSpace(content)
 }
 
+func (m *HistoryMessage) GetImages() []string {
+	var images []string
+	for _, block := range m.Content {
+		images = append(images, block.Images...)
+	}
+	return images
+}
+
 func (m *HistoryMessage) GetToolCalls() []llm.ToolCall {
 	var calls []llm.ToolCall
 	for _, block := range m.Content {
@@ -91,6 +99,7 @@ func (t *HistoryToolCall) GetArguments() map[string]interface{} {
 type ContentBlock struct {
 	Type      string          `json:"type"`
 	Text      string          `json:"text,omitempty"`
+	Images    []string        `json:"images,omitempty"`
 	ID        string          `json:"id,omitempty"`
 	ToolUseID string          `json:"tool_use_id,omitempty"`
 	Name      string          `json:"name,omitempty"`

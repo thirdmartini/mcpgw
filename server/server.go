@@ -63,33 +63,36 @@ func (s *Server) chatErrorResponse(w http.ResponseWriter, prompt string, err err
 }
 
 // handleChatRequest processes a chat prompt and generates a response, optionally including audio, using the server's resources.
-func (s *Server) handleChatRequest(w http.ResponseWriter, session *mcphost.Conversation, prompt string) {
-	log.Info("Chat Request Started", "session", session.Id, "prompt", prompt)
+func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.Conversation, prompt string) {
+	log.Info("Chat Request Started", "session", conversation.Id, "prompt", prompt)
 
 	startTime := time.Now()
-	message, err := s.host.RunPrompt(context.Background(), prompt, &session.Messages)
+	err := s.host.RunPrompt(context.Background(), prompt, conversation)
 	if err != nil {
 		log.Errorf("Error running prompt: %v", err)
 		s.chatErrorResponse(w, prompt, err)
 		return
 	}
 
-	log.Info("Chat Request Started", "session", session.Id, "prompt duration", time.Since(startTime))
+	log.Info("Chat Request Started", "session", conversation.Id, "prompt duration", time.Since(startTime))
+
+	cp := conversation.LastResponse()
 
 	response := Response{
-		Prompt:  prompt,
-		Message: message.Message,
-		Images:  message.Images,
+		Prompt: prompt,
+		//Message: message.Message,
+		Message: cp.Message,
+		Images:  cp.Images,
 	}
 
 	// if we have a speaker, convert the message to audio
 	if s.speaker != nil {
 		startTime = time.Now()
-		if audio, err := s.speaker.Say(message.Message); err == nil {
+		if audio, err := s.speaker.Say(response.Message); err == nil {
 			data, _ := io.ReadAll(audio)
 			response.Audio = base64.StdEncoding.EncodeToString(data)
 		}
-		log.Info("Chat Request Started", "session", session.Id, "speech duration", time.Since(startTime))
+		log.Info("Chat Request Started", "session", conversation.Id, "speech duration", time.Since(startTime))
 	}
 	json.NewEncoder(w).Encode(response)
 }
@@ -231,11 +234,11 @@ func (s *Server) WithAudioEncoder(speaker speaker.Engine) *Server {
 	return s
 }
 
-func NewServer(host *mcphost.Host) *Server {
+func NewServer(host *mcphost.Host, systemPrompt string) *Server {
 	log.SetLevel(log.DebugLevel)
 
 	return &Server{
 		host:          host,
-		conversations: mcphost.NewConversationManager(),
+		conversations: mcphost.NewConversationManager(systemPrompt),
 	}
 }

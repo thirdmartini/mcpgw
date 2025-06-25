@@ -29,7 +29,7 @@ func createInferenceProvider(ctx context.Context, config *InferenceProvider) (ll
 		return anthropic.NewProvider(config.Token, config.Host, config.Model, config.SystemPrompt), nil
 
 	case "ollama":
-		return ollama.NewProvider(config.Host, config.Model, config.SystemPrompt)
+		return ollama.NewProvider(config.Host, config.Model)
 
 	case "openai":
 		return openai.NewProvider(config.Token, config.Host, config.Model, config.SystemPrompt), nil
@@ -99,7 +99,7 @@ func runServer(ctx context.Context) error {
 
 	host := mcphost.NewHost(provider)
 	host.WithConfig(config.Servers)
-	srv := server.NewServer(host)
+	srv := server.NewServer(host, config.Inference.SystemPrompt)
 
 	log.Infof("Using Inference provider: %sn", provider.Name())
 	if transcriber, err := createSpeechToTextProvider(config.SpeechToText); err == nil {

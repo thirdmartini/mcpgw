@@ -2,6 +2,10 @@ package llm
 
 import "context"
 
+func HasToolCalls(m Message) bool {
+	return len(m.GetToolCalls()) > 0
+}
+
 // Message represents a message in the conversation
 type Message interface {
 	// GetRole returns the role of the message sender (e.g., "user", "assistant", "system")
