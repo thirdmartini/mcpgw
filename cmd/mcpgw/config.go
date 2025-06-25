@@ -16,9 +16,11 @@ type InferenceProvider struct {
 
 type Config struct {
 	UI struct {
-		Listen string
-		TLS    bool
-		Root   string
+		Listen  string
+		Root    string
+		TLS     bool
+		TLSCert string
+		TLSKey  string
 	}
 	SpeechToText *InferenceProvider
 	TextToSpeech *InferenceProvider

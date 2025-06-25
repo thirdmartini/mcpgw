@@ -1,28 +1,28 @@
-package server
+package mcphost
 
 import (
 	"github.com/thirdmartini/mcpgw/pkg/history"
 )
 
-type Session struct {
-	id       string
-	messages []history.HistoryMessage
-	window   int
+type Conversation struct {
+	Id       string
+	Messages []history.HistoryMessage
+	Window   int
 }
 
-func (s *Session) Prune() {
-	s.messages = s.pruneMessages(s.messages)
+func (s *Conversation) Prune() {
+	s.Messages = s.pruneMessages(s.Messages)
 }
 
-func (s *Session) pruneMessages(messages []history.HistoryMessage) []history.HistoryMessage {
-	if len(messages) <= s.window {
+func (s *Conversation) pruneMessages(messages []history.HistoryMessage) []history.HistoryMessage {
+	if len(messages) <= s.Window {
 		return messages
 	}
 
-	// Keep only the most recent messages based on window size
-	messages = messages[len(messages)-s.window:]
+	// Keep only the most recent Messages based on Window size
+	messages = messages[len(messages)-s.Window:]
 
-	// Handle messages
+	// Handle Messages
 	toolUseIds := make(map[string]bool)
 	toolResultIds := make(map[string]bool)
 
@@ -52,7 +52,7 @@ func (s *Session) pruneMessages(messages []history.HistoryMessage) []history.His
 				prunedBlocks = append(prunedBlocks, block)
 			}
 		}
-		// Only include messages that have content or are not assistant messages
+		// Only include Messages that have content or are not assistant Messages
 		if (len(prunedBlocks) > 0 && msg.Role == "assistant") ||
 			msg.Role != "assistant" {
 			hasTextBlock := false

@@ -141,15 +141,47 @@ func (p *Provider) convertMessages(prompt string, messages []llm.Message) []api.
 		ollamaMessages = append(ollamaMessages, ollamaMsg)
 	}
 
-	/* this is not needed at all here,
-	if prompt != "" {
-		ollamaMessages = append(ollamaMessages, api.Message{
-			Role:    "user",
-			Content: prompt,
-		})
-	}*/
-
 	return ollamaMessages
+}
+
+// Helper function to convert properties to Ollama's format
+func convertProperties(props map[string]interface{}) map[string]struct {
+	Type        api.PropertyType `json:"type"`
+	Items       any              `json:"items,omitempty"`
+	Description string           `json:"description"`
+	Enum        []any            `json:"enum,omitempty"`
+} {
+	result := make(map[string]struct {
+		Type        api.PropertyType `json:"type"`
+		Items       any              `json:"items,omitempty"`
+		Description string           `json:"description"`
+		Enum        []any            `json:"enum,omitempty"`
+	})
+
+	for name, prop := range props {
+		if propMap, ok := prop.(map[string]interface{}); ok {
+			prop := struct {
+				Type        api.PropertyType `json:"type"`
+				Items       any              `json:"items,omitempty"`
+				Description string           `json:"description"`
+				Enum        []any            `json:"enum,omitempty"`
+			}{
+				Type:        api.PropertyType{getString(propMap, "type")},
+				Description: getString(propMap, "description"),
+			}
+
+			// Handle enum if present
+			if enumRaw, ok := propMap["enum"].([]interface{}); ok {
+				for _, e := range enumRaw {
+					if str, ok := e.(string); ok {
+						prop.Enum = append(prop.Enum, str)
+					}
+				}
+			}
+			result[name] = prop
+		}
+	}
+	return result
 }
 
 func (p *Provider) convertTools(tools []llm.Tool) []api.Tool {
@@ -162,11 +194,14 @@ func (p *Provider) convertTools(tools []llm.Tool) []api.Tool {
 				Description: tool.Description,
 				Parameters: struct {
 					Type       string   `json:"type"`
+					Defs       any      `json:"$defs,omitempty"`
+					Items      any      `json:"items,omitempty"`
 					Required   []string `json:"required"`
 					Properties map[string]struct {
-						Type        string   `json:"type"`
-						Description string   `json:"description"`
-						Enum        []string `json:"enum,omitempty"`
+						Type        api.PropertyType `json:"type"`
+						Items       any              `json:"items,omitempty"`
+						Description string           `json:"description"`
+						Enum        []any            `json:"enum,omitempty"`
 					} `json:"properties"`
 				}{
 					Type:       tool.InputSchema.Type,
@@ -185,23 +220,13 @@ func (p *Provider) CreateMessage(
 	messages []llm.Message,
 	tools []llm.Tool,
 ) (llm.Message, error) {
-	log.Debug("creating message",
-		"prompt", prompt,
-		"num_messages", len(messages),
-		"num_tools", len(tools))
-
 	ollamaMessages := p.convertMessages(prompt, messages)
 	ollamaTools := p.convertTools(tools)
-	// Convert generic messages to Ollama format
 
-	var response api.Message
+	// Convert generic messages to Ollama format
 	log.Debug("creating message",
 		"prompt", prompt,
 		"num_messages", len(messages),
-		"num_tools", len(tools))
-
-	log.Debug("sending messages to Ollama",
-		"messages", ollamaMessages,
 		"num_tools", len(tools))
 
 	for idx, m := range ollamaMessages {
@@ -214,16 +239,20 @@ func (p *Provider) CreateMessage(
 		Messages: ollamaMessages,
 		Tools:    ollamaTools,
 		Stream:   boolPtr(false),
-		Options:  map[string]interface{}{},
+		Options: map[string]interface{}{
+			"num_ctx": 120000,
+		},
 	}
 
-	sending, err := json.MarshalIndent(&request, "", "  ")
-	log.Infof("%s\n", string(sending))
-	err = p.client.Chat(ctx, &request, func(r api.ChatResponse) error {
+	response := &Message{}
+
+	//sending, err := json.MarshalIndent(&request, "", "  ")
+	//log.Infof("%s\n", string(sending))
+
+	err := p.client.Chat(ctx, &request, func(r api.ChatResponse) error {
 		if r.Done {
-			response = r.Message
-			
-			log.Infof("Eval: %d %d\n", r.Metrics.EvalCount, r.Metrics.PromptEvalCount)
+			response.metrics = r.Metrics
+			response.message = r.Message
 		}
 		return nil
 	})
@@ -232,7 +261,7 @@ func (p *Provider) CreateMessage(
 		return nil, err
 	}
 
-	return &OllamaMessage{Message: response}, nil
+	return response, nil
 }
 
 func (p *Provider) SupportsTools() bool {
@@ -278,8 +307,8 @@ func (p *Provider) CreateToolResponse(
 	}
 
 	// Create a message with an explicit tool role
-	msg := &OllamaMessage{
-		Message: api.Message{
+	msg := &Message{
+		message: api.Message{
 			Role:    "tool", // Explicitly set role to "tool"
 			Content: contentStr,
 			// No need to set ToolCalls for a tool response
@@ -294,45 +323,6 @@ func (p *Provider) CreateToolResponse(
 		"raw_content", contentStr)
 
 	return msg, nil
-}
-
-// Helper function to convert properties to Ollama's format
-func convertProperties(props map[string]interface{}) map[string]struct {
-	Type        string   `json:"type"`
-	Description string   `json:"description"`
-	Enum        []string `json:"enum,omitempty"`
-} {
-	result := make(map[string]struct {
-		Type        string   `json:"type"`
-		Description string   `json:"description"`
-		Enum        []string `json:"enum,omitempty"`
-	})
-
-	for name, prop := range props {
-		if propMap, ok := prop.(map[string]interface{}); ok {
-			prop := struct {
-				Type        string   `json:"type"`
-				Description string   `json:"description"`
-				Enum        []string `json:"enum,omitempty"`
-			}{
-				Type:        getString(propMap, "type"),
-				Description: getString(propMap, "description"),
-			}
-
-			// Handle enum if present
-			if enumRaw, ok := propMap["enum"].([]interface{}); ok {
-				for _, e := range enumRaw {
-					if str, ok := e.(string); ok {
-						prop.Enum = append(prop.Enum, str)
-					}
-				}
-			}
-
-			result[name] = prop
-		}
-	}
-
-	return result
 }
 
 // Helper function to safely get string values from map

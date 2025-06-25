@@ -1,7 +1,7 @@
 package mcphost
 
 /*
-func (h *Host) runToolUse(ctx context.Context, message llm.Message, messages *[]history.HistoryMessage) (*ChatResponse, error) {
+func (h *Host) runToolUse(ctx context.Context, message llm.message, Messages *[]history.HistoryMessage) (*ChatResponse, error) {
 	var messageContent []history.ContentBlock
 	var toolResults []history.ContentBlock
 
@@ -94,14 +94,14 @@ func (h *Host) runToolUse(ctx context.Context, message llm.Message, messages *[]
 		}
 	}
 
-	*messages = append(*messages, history.HistoryMessage{
+	*Messages = append(*Messages, history.HistoryMessage{
 		Role:    message.GetRole(),
 		Content: messageContent,
 	})
 
 	if len(toolResults) > 0 {
 		for _, toolResult := range toolResults {
-			*messages = append(*messages, history.HistoryMessage{
+			*Messages = append(*Messages, history.HistoryMessage{
 				Role:    "tool",
 				Content: []history.ContentBlock{toolResult},
 			})
@@ -109,12 +109,12 @@ func (h *Host) runToolUse(ctx context.Context, message llm.Message, messages *[]
 		// Make another call to get Claude's response to the tool results
 		log.Infof("Calling LLM to interpret tool results")
 
-		pr, err := h.runPromptNonInteractive(ctx, "", messages)
+		pr, err := h.runPromptNonInteractive(ctx, "", Messages)
 		if err != nil {
 			return nil, err
 		}
 
-		response.Message = pr.Message
+		response.message = pr.message
 		response.Images = append(response.Images, pr.Images...)
 		return &response, nil
 	}
@@ -122,8 +122,8 @@ func (h *Host) runToolUse(ctx context.Context, message llm.Message, messages *[]
 
 }
 
-func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, messages *[]history.HistoryMessage) (*ChatResponse, error) {
-	var message llm.Message
+func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, Messages *[]history.HistoryMessage) (*ChatResponse, error) {
+	var message llm.message
 	var err error
 	var response ChatResponse
 
@@ -131,8 +131,8 @@ func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, mess
 	if prompt != "" {
 		log.Infof("Pompt: %s\n", prompt)
 
-		*messages = append(
-			*messages,
+		*Messages = append(
+			*Messages,
 			history.HistoryMessage{
 				Role: "user",
 				Content: []history.ContentBlock{{
@@ -143,11 +143,11 @@ func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, mess
 		)
 	}
 
-	// Convert MessageParam to llm.Message for provider
-	// Messages already implement llm.Message interface
-	llmMessages := make([]llm.Message, len(*messages))
-	for i := range *messages {
-		llmMessages[i] = &(*messages)[i]
+	// Convert MessageParam to llm.message for provider
+	// Messages already implement llm.message interface
+	llmMessages := make([]llm.message, len(*Messages))
+	for i := range *Messages {
+		llmMessages[i] = &(*Messages)[i]
 	}
 
 	message, err = h.provider.CreateMessage(
@@ -164,7 +164,7 @@ func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, mess
 	var messageContent []history.ContentBlock
 
 	if message.GetContent() != "" {
-		response.Message = message.GetContent()
+		response.message = message.GetContent()
 	}
 
 	toolResults := []history.ContentBlock{}
@@ -180,10 +180,10 @@ func (h *Host) runPromptNonInteractive2(ctx context.Context, prompt string, mess
 
 	// No tool calls, the LLM is sending us a direct prompt
 	if len(message.GetToolCalls()) == 0 {
-		response.Message = message.GetContent()
+		response.message = message.GetContent()
 		return &response, nil
 	}
 
-	//response, err := h.runToolUse(ctx, message, messages)
+	//response, err := h.runToolUse(ctx, message, Messages)
 }
 */

@@ -66,7 +66,7 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 
 	// This appends the prompt to the history for next time
 	if prompt != "" {
-		log.Infof("Pompt: %s\n", prompt)
+		log.Infof("Prompt: %s\n", prompt)
 
 		*messages = append(
 			*messages,
@@ -80,8 +80,8 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, messa
 		)
 	}
 
-	// Convert MessageParam to llm.Message for provider
-	// Messages already implement llm.Message interface
+	// Convert MessageParam to llm.message for provider
+	// Messages already implement llm.message interface
 	llmMessages := make([]llm.Message, len(*messages))
 	for i := range *messages {
 		llmMessages[i] = &(*messages)[i]

@@ -6,42 +6,43 @@ import (
 	"time"
 
 	"github.com/thirdmartini/mcpgw/pkg/llm"
-	
-	api "github.com/ollama/ollama/api"
+
+	"github.com/ollama/ollama/api"
 )
 
-// OllamaMessage adapts Ollama's message format to our Message interface
-type OllamaMessage struct {
-	Message    api.Message
+// Message adapts Ollama's message format to our Message interface
+type Message struct {
+	metrics    api.Metrics
+	message    api.Message
 	ToolCallID string // Store tool call ID separately since Ollama API doesn't have this field
 }
 
-func (m *OllamaMessage) GetRole() string {
-	return m.Message.Role
+func (m *Message) GetRole() string {
+	return m.message.Role
 }
 
-func (m *OllamaMessage) GetContent() string {
+func (m *Message) GetContent() string {
 	// For tool responses and regular messages, just return the content string
-	return strings.TrimSpace(m.Message.Content)
+	return strings.TrimSpace(m.message.Content)
 }
 
-func (m *OllamaMessage) GetToolCalls() []llm.ToolCall {
+func (m *Message) GetToolCalls() []llm.ToolCall {
 	var calls []llm.ToolCall
-	for _, call := range m.Message.ToolCalls {
+	for _, call := range m.message.ToolCalls {
 		calls = append(calls, NewOllamaToolCall(call))
 	}
 	return calls
 }
 
-func (m *OllamaMessage) GetUsage() (int, int) {
-	return 0, 0 // Ollama doesn't provide token usage info
+func (m *Message) GetUsage() (int, int) {
+	return m.metrics.PromptEvalCount, m.metrics.EvalCount
 }
 
-func (m *OllamaMessage) IsToolResponse() bool {
-	return m.Message.Role == "tool"
+func (m *Message) IsToolResponse() bool {
+	return m.message.Role == "tool"
 }
 
-func (m *OllamaMessage) GetToolResponseID() string {
+func (m *Message) GetToolResponseID() string {
 	return m.ToolCallID
 }
 

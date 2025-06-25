@@ -7,7 +7,7 @@ import (
 	"github.com/thirdmartini/mcpgw/pkg/llm"
 )
 
-// HistoryMessage implements the llm.Message interface for stored messages
+// HistoryMessage implements the llm.message interface for stored messages
 type HistoryMessage struct {
 	Role    string         `json:"role"`
 	Content []ContentBlock `json:"content"`

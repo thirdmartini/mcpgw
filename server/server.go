@@ -8,13 +8,11 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gorilla/mux"
 
-	"github.com/thirdmartini/mcpgw/pkg/history"
 	"github.com/thirdmartini/mcpgw/pkg/mcphost"
 	"github.com/thirdmartini/mcpgw/pkg/speaker"
 	"github.com/thirdmartini/mcpgw/pkg/transcriber"
@@ -22,12 +20,10 @@ import (
 )
 
 type Server struct {
-	host        *mcphost.Host
-	transcriber transcriber.Transcriber
-	speaker     speaker.Engine
-
-	lock     sync.Mutex
-	sessions map[string]*Session
+	host          *mcphost.Host
+	transcriber   transcriber.Transcriber
+	speaker       speaker.Engine
+	conversations *mcphost.ConversationManager
 }
 
 type Request struct {
@@ -58,40 +54,6 @@ func listenStringToAddress(listen string, tls bool) string {
 	return address + listen
 }
 
-func (s *Server) getSession(r *http.Request) *Session {
-	token := r.Header.Get("X-Conversation-Id")
-	if token == "" {
-		return &Session{
-			id:       token,
-			messages: []history.HistoryMessage{},
-			window:   16,
-		}
-	}
-
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	if session, ok := s.sessions[token]; ok {
-		return session
-	}
-
-	return &Session{
-		id:       token,
-		messages: []history.HistoryMessage{},
-		window:   16,
-	}
-}
-
-func (s *Server) putSession(session *Session) {
-	if session.id == "" {
-		return
-	}
-
-	session.Prune()
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.sessions[session.id] = session
-}
-
 func (s *Server) chatErrorResponse(w http.ResponseWriter, prompt string, err error) {
 	response := Response{
 		Prompt:  prompt,
@@ -101,15 +63,18 @@ func (s *Server) chatErrorResponse(w http.ResponseWriter, prompt string, err err
 }
 
 // handleChatRequest processes a chat prompt and generates a response, optionally including audio, using the server's resources.
-func (s *Server) handleChatRequest(w http.ResponseWriter, session *Session, prompt string) {
-	log.Info("Chat Request", "session", session.id, "prompt", prompt)
+func (s *Server) handleChatRequest(w http.ResponseWriter, session *mcphost.Conversation, prompt string) {
+	log.Info("Chat Request Started", "session", session.Id, "prompt", prompt)
 
-	message, err := s.host.RunPrompt(context.Background(), prompt, &session.messages)
+	startTime := time.Now()
+	message, err := s.host.RunPrompt(context.Background(), prompt, &session.Messages)
 	if err != nil {
 		log.Errorf("Error running prompt: %v", err)
 		s.chatErrorResponse(w, prompt, err)
 		return
 	}
+
+	log.Info("Chat Request Started", "session", session.Id, "prompt duration", time.Since(startTime))
 
 	response := Response{
 		Prompt:  prompt,
@@ -119,13 +84,12 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, session *Session, prom
 
 	// if we have a speaker, convert the message to audio
 	if s.speaker != nil {
+		startTime = time.Now()
 		if audio, err := s.speaker.Say(message.Message); err == nil {
 			data, _ := io.ReadAll(audio)
 			response.Audio = base64.StdEncoding.EncodeToString(data)
-			// debug
-			//os.WriteFile("example/ui/static/audio.wav", data, 0644)
-			//speaker.PlayAudio(response.Audio)
 		}
+		log.Info("Chat Request Started", "session", session.Id, "speech duration", time.Since(startTime))
 	}
 	json.NewEncoder(w).Encode(response)
 }
@@ -133,8 +97,8 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, session *Session, prom
 // AudioChatRequest handles HTTP POST requests for audio-based chat interactions.
 // It transcribes audio input, processes the prompt with the server's LLM host, and responds with the generated output.
 func (s *Server) AudioChatRequest(w http.ResponseWriter, r *http.Request) {
-	session := s.getSession(r)
-	defer s.putSession(session)
+	session := s.conversations.GetConversation(r.Header.Get("X-Conversation-Id"))
+	defer s.conversations.PutConversation(session)
 
 	prompt, err := s.Transcribe(r.Body)
 	if err != nil {
@@ -148,10 +112,14 @@ func (s *Server) AudioChatRequest(w http.ResponseWriter, r *http.Request) {
 // AudioTranscribeRequest handles HTTP POST requests for audio transcription.
 // It transcribes audio input from the request body and responds with the transcribed text in JSON format.
 func (s *Server) AudioTranscribeRequest(w http.ResponseWriter, r *http.Request) {
-	session := s.getSession(r)
-	defer s.putSession(session)
+	session := s.conversations.GetConversation(r.Header.Get("X-Conversation-Id"))
+	defer s.conversations.PutConversation(session)
 
-	log.Info("Audio Transcribe Request", "session", session.id)
+	log.Info("Audio Transcribe Request Started", "session", session.Id)
+	startTime := time.Now()
+	defer func() {
+		log.Info("Audio Transcribe Request Completed", "session", session.Id, "duration", time.Since(startTime))
+	}()
 
 	prompt, err := s.Transcribe(r.Body)
 	if err != nil {
@@ -168,12 +136,10 @@ func (s *Server) AudioTranscribeRequest(w http.ResponseWriter, r *http.Request) 
 // ChatRequest handles HTTP POST requests for text-based chat interactions.
 // It processes the request body, executes the chat prompt, and sends a JSON response with the result.
 func (s *Server) ChatRequest(w http.ResponseWriter, r *http.Request) {
-	session := s.getSession(r)
-	defer s.putSession(session)
+	session := s.conversations.GetConversation(r.Header.Get("X-Conversation-Id"))
+	defer s.conversations.PutConversation(session)
 
-	log.Info("Text Chat Request", "session", session.id)
 	request := Request{}
-
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -234,10 +200,9 @@ func (s *Server) ListenAndServeTLS(address string, root string, cert, key string
 				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 			},
-			PreferServerCipherSuites: true,
-			InsecureSkipVerify:       true,
-			MinVersion:               tls.VersionTLS11,
-			MaxVersion:               tls.VersionTLS13,
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS11,
+			MaxVersion:         tls.VersionTLS13,
 		},
 	}
 
@@ -270,7 +235,7 @@ func NewServer(host *mcphost.Host) *Server {
 	log.SetLevel(log.DebugLevel)
 
 	return &Server{
-		host:     host,
-		sessions: make(map[string]*Session),
+		host:          host,
+		conversations: mcphost.NewConversationManager(),
 	}
 }

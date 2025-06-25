@@ -113,7 +113,7 @@ func runServer(ctx context.Context) error {
 	}
 
 	if config.UI.TLS {
-		return srv.ListenAndServeTLS(config.UI.Listen, config.UI.Root, "cert.pem", "key.pem")
+		return srv.ListenAndServeTLS(config.UI.Listen, config.UI.Root, config.UI.TLSCert, config.UI.TLSKey)
 	} else {
 		return srv.ListenAndServe(config.UI.Listen, config.UI.Root)
 	}

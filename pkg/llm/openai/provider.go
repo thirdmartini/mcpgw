@@ -295,7 +295,7 @@ func (p *Provider) CreateToolResponse(
 	return msg, nil
 }
 
-// Message implements the llm.Message interface
+// Message implements the llm.message interface
 type Message struct {
 	Resp   *APIResponse
 	Choice *Choice
