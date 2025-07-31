@@ -11,6 +11,7 @@ import (
 type HistoryMessage struct {
 	Role    string         `json:"role"`
 	Content []ContentBlock `json:"content"`
+	Metrics llm.Metrics
 }
 
 func (m *HistoryMessage) GetRole() string {
@@ -68,8 +69,8 @@ func (m *HistoryMessage) GetToolResponseID() string {
 	return ""
 }
 
-func (m *HistoryMessage) GetUsage() (int, int) {
-	return 0, 0 // History doesn't track usage
+func (m *HistoryMessage) GetMetrics() llm.Metrics {
+	return m.Metrics
 }
 
 // HistoryToolCall implements llm.ToolCall for stored tool calls

@@ -12,4 +12,9 @@
 <img src="{{ image }}" alt="Post Image" class="news-image">
 {{/if}}
     </div>
+    {{#if evaltime}}
+    <div style="text-align: right;">
+    <span class="handle-time">Stats {{ outputrate }} tok/sec | Eval: {{ evaltime }} | Audio: {{ audiotime }} </span>
+    </div>
+    {{/if}}
 </div>

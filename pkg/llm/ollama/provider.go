@@ -231,7 +231,8 @@ func (p *Provider) CreateMessage(
 		Tools:    ollamaTools,
 		Stream:   boolPtr(false),
 		Options: map[string]interface{}{
-			"num_ctx": 120000,
+			"num_ctx": 80000,
+			// "num_gpu": 0, // this will disable gpu usage and make things terribly slow
 		},
 	}
 

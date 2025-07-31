@@ -328,8 +328,13 @@ func (m *Message) GetToolResponseID() string {
 	return m.Choice.Message.ToolCallID
 }
 
-func (m *Message) GetUsage() (int, int) {
-	return m.Resp.Usage.PromptTokens, m.Resp.Usage.CompletionTokens
+func (m *Message) GetMetrics() llm.Metrics {
+	return llm.Metrics{
+		InputTokenCount:  m.Resp.Usage.PromptTokens,
+		InputEvalTime:    0,
+		OutputTokenCount: m.Resp.Usage.CompletionTokens,
+		OutputEvalTime:   0,
+	}
 }
 
 // ToolCallWrapper implements llm.ToolCall

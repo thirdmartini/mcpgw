@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/generative-ai-go/genai"
-	
+
 	"github.com/thirdmartini/mcpgw/pkg/llm"
 )
 
@@ -68,6 +68,11 @@ func (m *Message) GetToolResponseID() string {
 	return fmt.Sprintf("Tool<%d>", m.toolCallID)
 }
 
-func (m *Message) GetUsage() (input int, output int) {
-	return 0, 0
+func (m *Message) GetMetrics() llm.Metrics {
+	return llm.Metrics{
+		InputTokenCount:  int(m.Candidate.TokenCount),
+		InputEvalTime:    0,
+		OutputTokenCount: int(m.Candidate.TokenCount),
+		OutputEvalTime:   0,
+	}
 }

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	
+
 	"github.com/thirdmartini/mcpgw/pkg/llm"
 )
 
@@ -154,6 +154,19 @@ func (m *Message) GetToolResponseID() string {
 
 func (m *Message) GetUsage() (input int, output int) {
 	return m.Msg.Usage.InputTokens, m.Msg.Usage.OutputTokens
+}
+
+func (m *Message) GetTokensPerSecond() (float64, float64) {
+	return 0, 0
+}
+
+func (m *Message) GetMetrics() llm.Metrics {
+	return llm.Metrics{
+		InputTokenCount:  m.Msg.Usage.InputTokens,
+		InputEvalTime:    0,
+		OutputTokenCount: m.Msg.Usage.OutputTokens,
+		OutputEvalTime:   0,
+	}
 }
 
 // ToolCall implements the llm.ToolCall interface

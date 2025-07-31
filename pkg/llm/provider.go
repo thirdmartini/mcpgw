@@ -1,6 +1,9 @@
 package llm
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 func HasToolCalls(m Message) bool {
 	return len(m.GetToolCalls()) > 0
@@ -23,8 +26,8 @@ type Message interface {
 	// GetToolResponseID returns the ID of the tool call this message is responding to
 	GetToolResponseID() string
 
-	// GetUsage returns token usage statistics if available
-	GetUsage() (input int, output int)
+	// GetMetrics returns llm evaluation metrics
+	GetMetrics() Metrics
 }
 
 // ToolCall represents a tool invocation
@@ -66,4 +69,15 @@ type Provider interface {
 
 	// Name returns the provider's name
 	Name() string
+}
+
+type Metrics struct {
+	InputTokenCount  int
+	InputEvalTime    time.Duration
+	OutputTokenCount int
+	OutputEvalTime   time.Duration
+}
+
+func (m *Metrics) EvalRate() (float64, float64) {
+	return float64(m.InputTokenCount) / m.InputEvalTime.Seconds(), float64(m.OutputTokenCount) / m.OutputEvalTime.Seconds()
 }

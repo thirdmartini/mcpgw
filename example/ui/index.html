@@ -11,6 +11,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <style>
         body {
             #font-family: Arial, sans-serif;
@@ -355,7 +356,7 @@
         })
         .then(response => response.json())
         .then(data => {
-            appendResponse(data.Message, data.Images, true)
+            appendResponse(data.Message, data.Images, true, data.Metrics)
             if (data.Audio != null) {
                 playAudio(data.Audio)
             }
@@ -419,7 +420,7 @@
         history.scrollTop = history.scrollHeight;
     }
 
-    let appendResponse = function(text, images, removeThinking) {
+    let appendResponse = function(text, images, removeThinking, metrics) {
         let history = document.getElementById("history")
 
         if (removeThinking == true) {
@@ -431,6 +432,12 @@
             username: "Samantha (Agentic)",
             postedtime: (new Date()).toLocaleDateString("en-US", dateOptions),
             content: text,
+        }
+
+        if (metrics != null) {
+            post.outputrate = metrics.OutputTokenRate.toFixed(3)
+            post.evaltime = metrics.RequestTime.toFixed(3)
+            post.audiotime = metrics.AudioEncodeTime.toFixed(3)
         }
 
         if (images != null ) {

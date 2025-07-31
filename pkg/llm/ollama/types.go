@@ -34,8 +34,13 @@ func (m *Message) GetToolCalls() []llm.ToolCall {
 	return calls
 }
 
-func (m *Message) GetUsage() (int, int) {
-	return m.metrics.PromptEvalCount, m.metrics.EvalCount
+func (m *Message) GetMetrics() llm.Metrics {
+	return llm.Metrics{
+		InputTokenCount:  m.metrics.PromptEvalCount,
+		InputEvalTime:    m.metrics.PromptEvalDuration,
+		OutputTokenCount: m.metrics.EvalCount,
+		OutputEvalTime:   m.metrics.EvalDuration,
+	}
 }
 
 func (m *Message) IsToolResponse() bool {

@@ -85,6 +85,7 @@ func (s *Conversation) LastResponse() *ChatResponse {
 	response := &ChatResponse{
 		Message: history.GetContent(),
 		Images:  history.GetImages(),
+		Metrics: history.GetMetrics(),
 	}
 	// check to see if the previous previous history has an image content block
 

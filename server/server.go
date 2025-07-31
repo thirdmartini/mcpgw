@@ -31,12 +31,26 @@ type Request struct {
 	Prompt         string
 }
 
+type Metrics struct {
+	InputTokenCount  int
+	InputEvalTime    float64
+	InputToTokenRate float64
+
+	OutputTokenCount int
+	OutputEvalTime   float64
+	OutputTokenRate  float64
+
+	AudioEncodeTime float64
+	RequestTime     float64
+}
+
 type Response struct {
 	ConversationID string
 	Prompt         string
 	Message        string
 	Audio          string
 	Images         []string
+	Metrics        Metrics
 }
 
 func listenStringToAddress(listen string, tls bool) string {
@@ -74,16 +88,23 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.
 		return
 	}
 
-	log.Info("Chat Request Started", "session", conversation.Id, "prompt duration", time.Since(startTime))
-
 	cp := conversation.LastResponse()
-
+	metrics := cp.Metrics
 	response := Response{
-		Prompt: prompt,
-		//Message: message.Message,
+		Prompt:  prompt,
 		Message: cp.Message,
 		Images:  cp.Images,
+		Metrics: Metrics{
+			InputTokenCount:  metrics.InputTokenCount,
+			InputEvalTime:    metrics.InputEvalTime.Seconds(),
+			InputToTokenRate: float64(metrics.InputTokenCount) / metrics.InputEvalTime.Seconds(),
+			OutputTokenCount: metrics.OutputTokenCount,
+			OutputEvalTime:   metrics.OutputEvalTime.Seconds(),
+			OutputTokenRate:  float64(metrics.OutputTokenCount) / metrics.OutputEvalTime.Seconds(),
+			RequestTime:      time.Since(startTime).Seconds(),
+		},
 	}
+	log.Info("Chat Request Completed", "session", conversation.Id, "prompt duration", response.Metrics.RequestTime)
 
 	// if we have a speaker, convert the message to audio
 	if s.speaker != nil {
@@ -92,7 +113,9 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.
 			data, _ := io.ReadAll(audio)
 			response.Audio = base64.StdEncoding.EncodeToString(data)
 		}
-		log.Info("Chat Request Started", "session", conversation.Id, "speech duration", time.Since(startTime))
+		response.Metrics.AudioEncodeTime = time.Since(startTime).Seconds()
+		log.Info("Chat Audio Encoded", "session", conversation.Id, "speech duration", response.Metrics.AudioEncodeTime)
+
 	}
 	json.NewEncoder(w).Encode(response)
 }

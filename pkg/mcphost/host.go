@@ -23,8 +23,9 @@ type Host struct {
 }
 
 type ChatResponse struct {
-	Message string   `json:"message"`
-	Images  []string `json:"images"`
+	Message string      `json:"message"`
+	Images  []string    `json:"images"`
+	Metrics llm.Metrics `json:"metrics"`
 }
 
 func (h *Host) Close() {
@@ -209,7 +210,8 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, conve
 	// If we didn't get any tool calls, then we are done, respond to the user
 	if !llm.HasToolCalls(message) {
 		conversation.Append(history.HistoryMessage{
-			Role: message.GetRole(),
+			Role:    message.GetRole(),
+			Metrics: message.GetMetrics(),
 			Content: []history.ContentBlock{
 				{
 					Type: "text",
@@ -244,6 +246,7 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, conve
 	}
 	conversation.Append(history.HistoryMessage{
 		Role:    message.GetRole(),
+		Metrics: message.GetMetrics(),
 		Content: messageContent,
 	})
 
@@ -338,6 +341,7 @@ func (h *Host) runPromptNonInteractive(ctx context.Context, prompt string, conve
 	for _, toolResult := range toolResults {
 		conversation.Append(history.HistoryMessage{
 			Role:    "tool",
+			Metrics: message.GetMetrics(),
 			Content: []history.ContentBlock{toolResult},
 		})
 	}
