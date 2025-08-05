@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "reminders": {
-      "command": "./reminders",
-      "args": [
-      ]
-    }
-  }
-}

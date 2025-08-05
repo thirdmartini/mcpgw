@@ -28,6 +28,12 @@
          "command": "./reminders",
          "args": [
          ]
+       },
+       "web_search": {
+         "command": "./websearch",
+         "env": {
+           "BRAVE_API_KEY": "Put your Brave AI Search API KEY here (https://brave.com/search/api/)"
+         }
        }
      }
    }

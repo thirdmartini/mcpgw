@@ -76,6 +76,18 @@ func (s *Server) chatErrorResponse(w http.ResponseWriter, prompt string, err err
 	json.NewEncoder(w).Encode(response)
 }
 
+func calculateTokenRate(tokens int, seconds float64) float64 {
+	if tokens == 0 {
+		return 0
+	}
+
+	if seconds == 0 {
+		return 0
+	}
+
+	return float64(tokens) / seconds
+}
+
 // handleChatRequest processes a chat prompt and generates a response, optionally including audio, using the server's resources.
 func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.Conversation, prompt string) {
 	log.Info("Chat Request Started", "session", conversation.Id, "prompt", prompt)
@@ -97,10 +109,10 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.
 		Metrics: Metrics{
 			InputTokenCount:  metrics.InputTokenCount,
 			InputEvalTime:    metrics.InputEvalTime.Seconds(),
-			InputToTokenRate: float64(metrics.InputTokenCount) / metrics.InputEvalTime.Seconds(),
+			InputToTokenRate: calculateTokenRate(metrics.InputTokenCount, metrics.InputEvalTime.Seconds()),
 			OutputTokenCount: metrics.OutputTokenCount,
 			OutputEvalTime:   metrics.OutputEvalTime.Seconds(),
-			OutputTokenRate:  float64(metrics.OutputTokenCount) / metrics.OutputEvalTime.Seconds(),
+			OutputTokenRate:  calculateTokenRate(metrics.OutputTokenCount, metrics.OutputEvalTime.Seconds()),
 			RequestTime:      time.Since(startTime).Seconds(),
 		},
 	}
@@ -117,6 +129,9 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.
 		log.Info("Chat Audio Encoded", "session", conversation.Id, "speech duration", response.Metrics.AudioEncodeTime)
 
 	}
+
+	log.Info("Chat Response Sent", "response", response.Message)
+
 	json.NewEncoder(w).Encode(response)
 }
 
@@ -204,8 +219,8 @@ func (s *Server) ListenAndServe(address string, root string) error {
 	srv := &http.Server{
 		Handler:      s.createRoutes(root),
 		Addr:         address,
-		WriteTimeout: 120 * time.Second,
-		ReadTimeout:  120 * time.Second,
+		WriteTimeout: 600 * time.Second,
+		ReadTimeout:  600 * time.Second,
 	}
 
 	log.Infof("Starting server at [ %s ]", listenStringToAddress(address, false))

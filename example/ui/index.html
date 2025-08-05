@@ -4,234 +4,13 @@
 <head>
     <meta charset="utf-8">
     <title>Agentic Samantha</title>
-
     <script src="/static/js/app.js"></script>
     <script src="/static/js/handlebars.js"></script>
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="mobile-web-app-capable" content="yes">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <style>
-        body {
-            #font-family: Arial, sans-serif;
-            background-color: black;
-            margin: 0px;
-            padding: 0px;
-            color: black;
-            position: absolute;
-            font-family: monospace;
-            width: 100dvw;
-            height: 100dvh;
-            overflow: clip;
-        }
-
-        .audio-element.hide {
-            display: none;
-        }
-
-        .query-container {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            padding: 20px;
-            display: flex;
-            text-align: center;
-            align-items: center;
-            flex-direction: column;
-        }
-
-        .main {
-            background: black;
-            text-align: center;
-            align-items: center;
-            display: flex;
-            flex-direction: column;
-            background: black;
-        }
-
-        .history {
-            width:100%;
-            height:calc(100dvh - 200px);
-            text-align: left;
-            overflow-y: scroll;
-/*            background: #27a527;*/
-        }
-
-        .post-container {
-            box-sizing: border-box;
-            /*background-color: black;*/
-            border-radius: 0px;
-            border-width: 1px;
-            border-style: solid;
-            border-color: #414142;
-            width: calc(100% - 20px);
-            padding: 10px;
-            margin: 10px;
-            backdrop-filter: blur(10px);
-        }
-
-        .post-content {
-            margin: 0px 0;
-            padding-left: 50px;
-            font-size: 14px;
-            color: white;
-            white-space: pre-wrap;
-        }
-
-        .user-header {
-            display: flex;
-            align-items: center;
-            /*margin-bottom: 10px;*/
-        }
-
-        .profile-pic {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
-
-    .user-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .username {
-        font-weight: bold;
-        font-size: 14px;
-        color: white;
-        margin-bottom: 5px;
-    }
-
-    .handle-time {
-        color: #657786;
-        font-size: 13px;
-        color:lightslategrey;
-    }
-
-    .show-more {
-        background: none;
-        border: none;
-        color: #1da1f2;
-        font-size: 14px;
-        cursor: pointer;
-        padding: 5px 0;
-    }
-
-    .news-image {
-        position: relative;
-        margin-top: 10px;
-        justify-content: center;
-    }
-
-    .news-image img {
-        width: 100%;
-        border-radius: 8px;
-    }
-
-        .search-widget {
-            background-color: #2a2a2a;
-            border-radius: 25px;
-            padding: 10px;
-            display: flex;
-            align-items: center;
-            width: calc(100dvw - 50px);
-            flex-direction: column;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-        }
-
-        .search-input {
-            flex: 1;
-            width: calc(100% - 15px);
-            background: none;
-            border: none;
-            outline: none;
-            color: #ccc;
-            font-size: 16px;
-            padding: 5px 10px;
-            text-align: left;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 5px;
-            margin-top: 10px;
-            width: 100%;
-        }
-
-
-        .action-btn, .icon-btn {
-            background-color: #3a3a3a;
-            border: none;
-            border-radius: 25px;
-            height: 50px;
-            padding: 5px 10px;
-            color: #ccc;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .icon-btn {
-            padding: 5px;
-            font-size: 16px;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .action-btn:hover, .icon-btn:hover {
-            background-color: #4a4a4a;
-        }
-
-        .title {
-            color: #fff;
-            font-size: 18px;
-            margin: 0;
-            flex-grow: 1;
-            text-align: center;
-        }
-
-        .header-icon-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        .header-icon-btn {
-            background: none;
-            border: none;
-            color: #ccc;
-            font-size: 16px;
-            cursor: pointer;
-            padding: 5px;
-            border-radius: 50%;
-            transition: background-color 0.2s;
-        }
-        .header-icon-btn:hover {
-            background-color: #333;
-        }
-        .header-widget {
-            background-color: #000;
-            display: flex;
-            align-items: center;
-            padding: 10px 20px;
-            width: 100%;
-            box-sizing: border-box;
-            justify-content: space-between;
-        }
-
-        .backdrop {
-            /* Background pattern from Toptal Subtle Patterns */
-            background: linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.25)), url("/static/background-small.jpg") ;
-            background-size: cover;
-        }
-
-
-    </style>
-
+    <link rel="stylesheet" href="/static/css/default.css">
 </head>
 
 <body>
@@ -261,10 +40,8 @@
     </div>
 </div>
 
-
 <script type="module">
     import * as Audio from "/static/js/recorder.js";
-
 
     const containers = ['webm', 'ogg', 'mp4', 'x-matroska', '3gpp', '3gpp2',
         '3gp2', 'quicktime', 'mpeg', 'aac', 'flac', 'wav']
@@ -347,6 +124,7 @@
 
         fetch('/api/v.1/chat', {
             method: 'POST',
+            timeout: 1500, 
             headers: {
                 "X-Conversation-Id": chatId,
             },
@@ -550,12 +328,6 @@
                 });
         }
     }
-
-
-
-
-
-    // fill in sample for chat
 </script>
 </body>
 </html>
