@@ -214,8 +214,8 @@
 
         if (metrics != null) {
             post.outputrate = metrics.OutputTokenRate.toFixed(3)
-            post.evaltime = metrics.RequestTime.toFixed(3)
-            post.audiotime = metrics.AudioEncodeTime.toFixed(3)
+            post.evaltime = (metrics.RequestTime/1000000000.0).toFixed(3)
+            post.audiotime = (metrics.AudioEncodeTime/1000000000.0).toFixed(3)
         }
 
         if (images != null ) {
