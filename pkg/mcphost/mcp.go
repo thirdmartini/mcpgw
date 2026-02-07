@@ -9,9 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
-
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -21,44 +18,6 @@ import (
 const (
 	transportStdio = "stdio"
 	transportSSE   = "sse"
-)
-
-var (
-	// Tokyo Night theme colors
-	tokyoPurple = lipgloss.Color("99")  // #9d7cd8
-	tokyoCyan   = lipgloss.Color("73")  // #7dcfff
-	tokyoBlue   = lipgloss.Color("111") // #7aa2f7
-	tokyoGreen  = lipgloss.Color("120") // #73daca
-	tokyoRed    = lipgloss.Color("203") // #f7768e
-	tokyoOrange = lipgloss.Color("215") // #ff9e64
-	tokyoFg     = lipgloss.Color("189") // #c0caf5
-	tokyoGray   = lipgloss.Color("237") // #3b4261
-	tokyoBg     = lipgloss.Color("234") // #1a1b26
-
-	promptStyle = lipgloss.NewStyle().
-			Foreground(tokyoBlue).
-			PaddingLeft(2)
-
-	responseStyle = lipgloss.NewStyle().
-			Foreground(tokyoFg).
-			PaddingLeft(2)
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(tokyoRed).
-			Bold(true)
-
-	toolNameStyle = lipgloss.NewStyle().
-			Foreground(tokyoCyan).
-			Bold(true)
-
-	descriptionStyle = lipgloss.NewStyle().
-				Foreground(tokyoFg).
-				PaddingBottom(1)
-
-	contentStyle = lipgloss.NewStyle().
-			Background(tokyoBg).
-			PaddingLeft(4).
-			PaddingRight(4)
 )
 
 type MCPConfig struct {
@@ -174,7 +133,7 @@ func loadMCPConfig(configFile string) (*MCPConfig, error) {
 			return nil, fmt.Errorf("error writing default config file: %w", err)
 		}
 
-		log.Info("Created default config file", "path", configPath)
+		log.Infof("Created default config file", "path", configPath)
 		return &defaultConfig, nil
 	}
 
@@ -196,6 +155,7 @@ func loadMCPConfig(configFile string) (*MCPConfig, error) {
 	return &config, nil
 }
 
+/*
 func createMCPClients(
 	config *MCPConfig,
 ) (map[string]mcpclient.MCPClient, error) {
@@ -257,6 +217,95 @@ func createMCPClients(
 		defer cancel()
 
 		log.Info("Initializing server...", "name", name)
+		initRequest := mcp.InitializeRequest{}
+		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
+		initRequest.Params.ClientInfo = mcp.Implementation{
+			Name:    "mcphost",
+			Version: "0.1.0",
+		}
+		initRequest.Params.Capabilities = mcp.ClientCapabilities{}
+
+		_, err = client.Initialize(ctx, initRequest)
+		if err != nil {
+			client.Close()
+			for _, c := range clients {
+				c.Close()
+			}
+			return nil, fmt.Errorf(
+				"failed to initialize MCP client for %s: %w",
+				name,
+				err,
+			)
+		}
+
+		clients[name] = client
+	}
+
+	return clients, nil
+}*/
+
+func createMCPClients(
+	config *MCPConfig,
+) (map[string]ToolInterface, error) {
+	clients := make(map[string]ToolInterface)
+
+	for name, server := range config.MCPServers {
+		var client mcpclient.MCPClient
+		var err error
+
+		if server.Config.GetType() == transportSSE {
+			sseConfig := server.Config.(SSEServerConfig)
+
+			options := []mcpclient.ClientOption{}
+
+			if sseConfig.Headers != nil {
+				// Parse headers from the config
+				headers := make(map[string]string)
+				for _, header := range sseConfig.Headers {
+					parts := strings.SplitN(header, ":", 2)
+					if len(parts) == 2 {
+						key := strings.TrimSpace(parts[0])
+						value := strings.TrimSpace(parts[1])
+						headers[key] = value
+					}
+				}
+				options = append(options, mcpclient.WithHeaders(headers))
+			}
+
+			client, err = mcpclient.NewSSEMCPClient(
+				sseConfig.Url,
+				options...,
+			)
+			if err == nil {
+				err = client.(*mcpclient.SSEMCPClient).Start(context.Background())
+			}
+		} else {
+			stdioConfig := server.Config.(STDIOServerConfig)
+			var env []string
+			for k, v := range stdioConfig.Env {
+				env = append(env, fmt.Sprintf("%s=%s", k, v))
+			}
+			client, err = mcpclient.NewStdioMCPClient(
+				stdioConfig.Command,
+				env,
+				stdioConfig.Args...)
+		}
+		if err != nil {
+			for _, c := range clients {
+				c.Close()
+			}
+			return nil, fmt.Errorf(
+				"failed to create MCP client for %s: %w",
+				name,
+				err,
+			)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		log.Infof("Initializing server...", "name", name)
+
 		initRequest := mcp.InitializeRequest{}
 		initRequest.Params.ProtocolVersion = mcp.LATEST_PROTOCOL_VERSION
 		initRequest.Params.ClientInfo = mcp.Implementation{

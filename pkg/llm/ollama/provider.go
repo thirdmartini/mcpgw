@@ -9,13 +9,16 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/charmbracelet/log"
 	"github.com/mark3labs/mcp-go/mcp"
+
 	"github.com/ollama/ollama/api"
 
 	"github.com/thirdmartini/mcpgw/pkg/history"
+	"github.com/thirdmartini/mcpgw/pkg/kvlog"
 	"github.com/thirdmartini/mcpgw/pkg/llm"
 )
+
+var log = kvlog.NewLogger("ollama")
 
 func boolPtr(b bool) *bool {
 	return &b
@@ -214,16 +217,6 @@ func (p *Provider) CreateMessage(
 	ollamaMessages := p.convertMessages(prompt, messages)
 	ollamaTools := p.convertTools(tools)
 
-	// Convert generic messages to Ollama format
-	log.Debug("creating message",
-		"prompt", prompt,
-		"num_messages", len(messages),
-		"num_tools", len(tools))
-
-	for idx, m := range ollamaMessages {
-		log.Infof("M[%d]::%s:%+v->[%+v]", idx, m.Role, m.Content, m.ToolCalls)
-	}
-
 	request := api.ChatRequest{
 		Model: p.model,
 
@@ -271,45 +264,34 @@ func (p *Provider) CreateToolResponse(
 	toolCallID string,
 	content interface{},
 ) (llm.Message, error) {
-	log.Debug("creating tool response",
-		"tool_call_id", toolCallID,
-		"content_type", fmt.Sprintf("%T", content),
-		"content", content)
 
 	contentStr := ""
 	switch v := content.(type) {
 	case string:
 		contentStr = v
-		log.Debug("using string content directly")
+		log.Debugf("using string content directly")
 	default:
 		bytes, err := json.Marshal(v)
 		if err != nil {
-			log.Error("failed to marshal tool response",
-				"error", err,
-				"content", content)
+			log.KVs(kvlog.KVs{
+				"error":   err,
+				"content": content,
+			}).Errorf("failed to marshal tool response")
+
 			return nil, fmt.Errorf("error marshaling tool response: %w", err)
 		}
 		contentStr = string(bytes)
-		log.Debug("marshaled content to JSON string",
-			"result", contentStr)
 	}
 
 	// Create a message with an explicit tool role
 	msg := &Message{
 		message: api.Message{
-			Role:    "tool", // Explicitly set role to "tool"
+			Role:    "tool", // Explicitly set the role to "tool"
 			Content: contentStr,
 			// No need to set ToolCalls for a tool response
 		},
 		ToolCallID: toolCallID,
 	}
-
-	log.Debug("created tool response message",
-		"role", msg.GetRole(),
-		"content", msg.GetContent(),
-		"tool_call_id", msg.GetToolResponseID(),
-		"raw_content", contentStr)
-
 	return msg, nil
 }
 

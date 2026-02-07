@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/log"
-
+	"github.com/thirdmartini/mcpgw/example/plugins/reminders"
+	"github.com/thirdmartini/mcpgw/pkg/kvlog"
 	"github.com/thirdmartini/mcpgw/pkg/llm"
 	"github.com/thirdmartini/mcpgw/pkg/llm/anthropic"
 	"github.com/thirdmartini/mcpgw/pkg/llm/google"
@@ -18,6 +18,8 @@ import (
 	"github.com/thirdmartini/mcpgw/pkg/transcriber"
 	"github.com/thirdmartini/mcpgw/server"
 )
+
+var log = kvlog.NewLogger("mcpgw")
 
 func createInferenceProvider(ctx context.Context, config *InferenceProvider) (llm.Provider, error) {
 	if config == nil {
@@ -66,6 +68,13 @@ func createTextToSpeechProvider(config *InferenceProvider) (speaker.Engine, erro
 			Address: config.Host,
 			Voice:   "",
 		}), nil
+	case "voicerouter":
+		return speaker.NewVoiceRouterClient(speaker.VoiceRouterOptions{
+			Address: config.Host,
+			Token:   config.Token,
+			Engine:  config.Options["Engine"].(string),
+			Voice:   config.Options["Voice"].(string),
+		}), nil
 
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", config.Provider)
@@ -98,7 +107,17 @@ func runServer(ctx context.Context) error {
 	}
 
 	host := mcphost.NewHost(provider)
-	host.WithConfig(config.Servers)
+	err = host.WithConfig(config.Servers)
+	if err != nil {
+		panic(err)
+	}
+
+	host.AddBuiltinTool("reminders", reminders.NewReminders())
+
+	err = host.Start()
+	if err != nil {
+		panic(err)
+	}
 	srv := server.NewServer(host, config.Inference.SystemPrompt)
 
 	log.Infof("Using Inference provider: %sn", provider.Name())

@@ -10,7 +10,6 @@ import (
 	"path"
 	"strings"
 
-	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 )
 

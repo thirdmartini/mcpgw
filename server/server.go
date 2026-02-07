@@ -10,14 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/gorilla/mux"
 
+	"github.com/thirdmartini/mcpgw/pkg/kvlog"
 	"github.com/thirdmartini/mcpgw/pkg/mcphost"
 	"github.com/thirdmartini/mcpgw/pkg/speaker"
 	"github.com/thirdmartini/mcpgw/pkg/transcriber"
 	"github.com/thirdmartini/mcpgw/server/autocert"
 )
+
+var log = kvlog.NewLogger("server")
 
 type Server struct {
 	host          *mcphost.Host
@@ -33,15 +35,15 @@ type Request struct {
 
 type Metrics struct {
 	InputTokenCount  int
-	InputEvalTime    float64
+	InputEvalTime    time.Duration
 	InputToTokenRate float64
 
 	OutputTokenCount int
-	OutputEvalTime   float64
+	OutputEvalTime   time.Duration
 	OutputTokenRate  float64
 
-	AudioEncodeTime float64
-	RequestTime     float64
+	AudioEncodeTime time.Duration
+	RequestTime     time.Duration
 }
 
 type Response struct {
@@ -90,7 +92,10 @@ func calculateTokenRate(tokens int, seconds float64) float64 {
 
 // handleChatRequest processes a chat prompt and generates a response, optionally including audio, using the server's resources.
 func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.Conversation, prompt string) {
-	log.Info("Chat Request Started", "session", conversation.Id, "prompt", prompt)
+	log.KVs(kvlog.KVs{
+		"session": conversation.Id,
+		"prompt":  prompt,
+	}).Infof("Chat request started")
 
 	startTime := time.Now()
 	err := s.host.RunPrompt(context.Background(), prompt, conversation)
@@ -108,15 +113,18 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.
 		Images:  cp.Images,
 		Metrics: Metrics{
 			InputTokenCount:  metrics.InputTokenCount,
-			InputEvalTime:    metrics.InputEvalTime.Seconds(),
+			InputEvalTime:    metrics.InputEvalTime,
 			InputToTokenRate: calculateTokenRate(metrics.InputTokenCount, metrics.InputEvalTime.Seconds()),
 			OutputTokenCount: metrics.OutputTokenCount,
-			OutputEvalTime:   metrics.OutputEvalTime.Seconds(),
+			OutputEvalTime:   metrics.OutputEvalTime,
 			OutputTokenRate:  calculateTokenRate(metrics.OutputTokenCount, metrics.OutputEvalTime.Seconds()),
-			RequestTime:      time.Since(startTime).Seconds(),
+			RequestTime:      time.Since(startTime),
 		},
 	}
-	log.Info("Chat Request Completed", "session", conversation.Id, "prompt duration", response.Metrics.RequestTime)
+	log.KVs(kvlog.KVs{
+		"session":  conversation.Id,
+		"duration": time.Duration(response.Metrics.RequestTime),
+	}).Infof("Chat Request Completed")
 
 	// if we have a speaker, convert the message to audio
 	if s.speaker != nil {
@@ -125,12 +133,13 @@ func (s *Server) handleChatRequest(w http.ResponseWriter, conversation *mcphost.
 			data, _ := io.ReadAll(audio)
 			response.Audio = base64.StdEncoding.EncodeToString(data)
 		}
-		response.Metrics.AudioEncodeTime = time.Since(startTime).Seconds()
-		log.Info("Chat Audio Encoded", "session", conversation.Id, "speech duration", response.Metrics.AudioEncodeTime)
-
+		response.Metrics.AudioEncodeTime = time.Since(startTime)
+		log.KVs(kvlog.KVs{
+			"session":  conversation.Id,
+			"duration": response.Metrics.AudioEncodeTime,
+		}).Infof("Chat audio encoded")
 	}
-
-	log.Info("Chat Response Sent", "response", response.Message)
+	log.Infof("Chat Response Sent")
 
 	json.NewEncoder(w).Encode(response)
 }
@@ -156,10 +165,16 @@ func (s *Server) AudioTranscribeRequest(w http.ResponseWriter, r *http.Request) 
 	session := s.conversations.GetConversation(r.Header.Get("X-Conversation-Id"))
 	defer s.conversations.PutConversation(session)
 
-	log.Info("Audio Transcribe Request Started", "session", session.Id)
+	log.KVs(kvlog.KVs{
+		"session": session.Id,
+	}).Infof("Audio Transcribe Request Started")
+
 	startTime := time.Now()
 	defer func() {
-		log.Info("Audio Transcribe Request Completed", "session", session.Id, "duration", time.Since(startTime))
+		log.KVs(kvlog.KVs{
+			"session":  session.Id,
+			"duration": time.Since(startTime),
+		}).Infof("Audio Transcribe Request Completed")
 	}()
 
 	prompt, err := s.Transcribe(r.Body)
@@ -210,7 +225,6 @@ func (s *Server) createRoutes(root string) *mux.Router {
 	router.HandleFunc("/api/v.1/chat", s.ChatRequest).Methods("POST")
 	router.HandleFunc("/api/v.1/recordings/save", s.AudioChatRequest).Methods("POST")
 	router.HandleFunc("/api/v.1/recordings/transcribe", s.AudioTranscribeRequest).Methods("POST")
-
 	return router
 }
 
@@ -273,7 +287,7 @@ func (s *Server) WithAudioEncoder(speaker speaker.Engine) *Server {
 }
 
 func NewServer(host *mcphost.Host, systemPrompt string) *Server {
-	log.SetLevel(log.DebugLevel)
+	//log.SetLevel(log.DebugLevel)
 
 	return &Server{
 		host:          host,
